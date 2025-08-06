@@ -301,6 +301,96 @@ def display_pdf_analysis(result, file_index, total_files):
                     st.dataframe(page_df, use_container_width=True)
                 with col2:
                     st.bar_chart(page_df.set_index("Page"))
+        
+        # Add expandable individual page sections
+        st.markdown("---")
+        st.markdown("#### Individual Page Details")
+        st.info("Click on any page below to view it in high resolution with detailed field information.")
+        
+        # Group fields by page for the individual sections
+        page_field_counts = {}
+        for field in fields:
+            page = field.get("page", "Unknown")
+            if page != "Unknown":
+                page_field_counts[page] = page_field_counts.get(page, 0) + 1
+        
+        # Create expandable sections for each page (limit to reasonable number)
+        max_pages = max(page_field_counts.keys()) if page_field_counts else 1
+        for page_num in range(1, min(max_pages + 1, 7)):  # Show up to 6 pages
+            page_fields = page_field_counts.get(page_num, 0)
+            
+            # Create expander title with page info
+            expander_title = f"📄 Page {page_num}"
+            if page_fields > 0:
+                expander_title += f" - {page_fields} fillable fields"
+            else:
+                expander_title += " - No fillable fields detected"
+            
+            # Unique key for each expander in batch mode
+            expander_key = f"page_expander_{file_index}_{page_num}_{result['filename']}" if total_files > 1 else f"page_expander_{page_num}"
+            
+            with st.expander(expander_title, expanded=False, key=expander_key):
+                # Two columns: image and field details
+                col1, col2 = st.columns([2, 1])
+                
+                with col1:
+                    st.markdown(f"**High Resolution View - Page {page_num}**")
+                    try:
+                        # Render this specific page on demand with higher resolution
+                        pdf_document = fitz.open(stream=pdf_bytes, filetype="pdf")
+                        if page_num <= len(pdf_document):
+                            if st.session_state.get(checkbox_key, True):  # Check if highlighting is enabled
+                                page_img, highlighted_count = highlight_fields_on_page(pdf_document, page_num-1, fields, zoom_factor=2.0)
+                                st.image(page_img, caption=f"Page {page_num} - {page_fields} fields ({highlighted_count} highlighted)", use_container_width=True)
+                            else:
+                                page = pdf_document[page_num-1]
+                                mat = fitz.Matrix(2.0, 2.0)  # Higher zoom for detailed view
+                                pix = page.get_pixmap(matrix=mat)
+                                img_data = pix.tobytes("png")
+                                img = Image.open(io.BytesIO(img_data))
+                                st.image(img, caption=f"Page {page_num} - {page_fields} fields", use_container_width=True)
+                        else:
+                            st.info(f"Page {page_num} not found in the PDF.")
+                        pdf_document.close()
+                    except Exception as e:
+                        st.warning(f"Could not render page {page_num}: {str(e)}")
+                
+                with col2:
+                    st.markdown(f"**Page {page_num} Summary**")
+                    
+                    # Show fields specific to this page
+                    page_specific_fields = [f for f in fields if f.get("page") == page_num]
+                    if page_specific_fields:
+                        st.metric("Fields on this page", len(page_specific_fields))
+                        
+                        # Group by field type
+                        field_types_on_page = {}
+                        for field in page_specific_fields:
+                            field_type = field.get('type', 'Unknown')
+                            field_types_on_page[field_type] = field_types_on_page.get(field_type, 0) + 1
+                        
+                        st.markdown("**Field Types:**")
+                        for field_type, count in field_types_on_page.items():
+                            st.write(f"• {field_type}: {count}")
+                        
+                        st.markdown("**Field Details:**")
+                        for i, field in enumerate(page_specific_fields, 1):
+                            field_name = field.get('name', f'Field_{i}')
+                            field_type = field.get('type', 'Unknown')
+                            required = "Required" if field.get('required', False) else "Optional"
+                            st.write(f"{i}. **{field_name}**")
+                            st.write(f"   Type: {field_type}")
+                            st.write(f"   Status: {required}")
+                            if field.get('default_value'):
+                                st.write(f"   Default: {field.get('default_value')}")
+                            if i < len(page_specific_fields):
+                                st.write("---")
+                    else:
+                        st.info("No fillable fields detected on this page.")
+                        st.write("This page may contain:")
+                        st.write("• Static text content")
+                        st.write("• Images or graphics") 
+                        st.write("• Non-interactive elements")
     
     else:
         st.info("No fillable fields detected in this PDF.")
