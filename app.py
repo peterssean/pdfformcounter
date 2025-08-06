@@ -78,9 +78,19 @@ def main():
                         try:
                             # Convert PDF to images for visualization
                             with st.spinner("Rendering PDF preview..."):
-                                pages = convert_from_bytes(pdf_bytes, dpi=150, first_page=1, last_page=3)  # Limit to first 3 pages
+                                # Try different DPI settings for better compatibility
+                                pages = convert_from_bytes(
+                                    pdf_bytes, 
+                                    dpi=120,  # Lower DPI for better performance
+                                    first_page=1, 
+                                    last_page=min(3, 10),  # Limit to first 3 pages
+                                    fmt='PNG',  # Specify format
+                                    thread_count=1  # Single thread for stability
+                                )
                                 
                                 if pages:
+                                    st.success(f"✅ Successfully rendered {len(pages)} page(s)")
+                                    
                                     # Display PDF pages in columns
                                     if len(pages) == 1:
                                         st.image(pages[0], caption=f"Page 1 - {field_count} fillable fields detected", use_column_width=True)
@@ -93,9 +103,13 @@ def main():
                                         if len(pages) > 3:
                                             st.info(f"Showing first 3 pages. PDF contains {len(pages)} total pages.")
                                 else:
-                                    st.warning("Could not render PDF preview.")
+                                    st.warning("Could not render PDF preview - no pages returned.")
+                        except ImportError as e:
+                            st.error("PDF visualization requires additional system dependencies. The field analysis will continue to work.")
+                            st.info("Note: PDF preview feature is temporarily unavailable.")
                         except Exception as e:
-                            st.warning(f"Could not render PDF preview: {str(e)}")
+                            st.warning(f"PDF preview unavailable: {str(e)}")
+                            st.info("The field counting and analysis features are still working normally.")
                         
                         st.markdown("---")
                         
