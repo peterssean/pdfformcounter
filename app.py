@@ -169,8 +169,6 @@ def main():
                                     
                                     page_images.append(img)
                                 
-                                pdf_document.close()
-                                
                                 if page_images:
                                     st.success(f"✅ Successfully rendered {len(page_images)} page(s)")
                                     
@@ -203,6 +201,80 @@ def main():
                                         
                                         if page_count > 3:
                                             st.info(f"Showing first 3 pages. PDF contains {page_count} total pages.")
+                                
+                                # Add expandable sections for individual page viewing
+                                st.markdown("---")
+                                st.markdown("#### Individual Page Details")
+                                st.info("Click on any page below to view it in high resolution with field details.")
+                                
+                                # Create expandable sections for each page
+                                for page_num in range(page_count):
+                                    page_fields = page_field_counts.get(page_num + 1, 0)
+                                    
+                                    # Create expander title with page info
+                                    expander_title = f"📄 Page {page_num + 1}"
+                                    if page_fields > 0:
+                                        expander_title += f" - {page_fields} fillable fields"
+                                    else:
+                                        expander_title += " - No fillable fields detected"
+                                    
+                                    with st.expander(expander_title, expanded=False):
+                                        # Two columns: image and field details
+                                        col1, col2 = st.columns([2, 1])
+                                        
+                                        with col1:
+                                            st.markdown(f"**High Resolution View - Page {page_num + 1}**")
+                                            # Render this specific page on demand with higher resolution
+                                            if highlight_fields:
+                                                page_img, highlighted_count = highlight_fields_on_page(pdf_document, page_num, fields, zoom_factor=2.0)
+                                                st.image(page_img, caption=f"Page {page_num + 1} - {page_fields} fields ({highlighted_count} highlighted)", use_container_width=True)
+                                            else:
+                                                page = pdf_document[page_num]
+                                                mat = fitz.Matrix(2.0, 2.0)  # Higher zoom for detailed view
+                                                pix = page.get_pixmap(matrix=mat)
+                                                img_data = pix.tobytes("png")
+                                                img = Image.open(io.BytesIO(img_data))
+                                                st.image(img, caption=f"Page {page_num + 1} - {page_fields} fields", use_container_width=True)
+                                        
+                                        with col2:
+                                            st.markdown(f"**Page {page_num + 1} Summary**")
+                                            
+                                            # Show fields specific to this page
+                                            page_specific_fields = [f for f in fields if f.get("page") == page_num + 1]
+                                            if page_specific_fields:
+                                                st.metric("Fields on this page", len(page_specific_fields))
+                                                
+                                                # Group by field type
+                                                field_types_on_page = {}
+                                                for field in page_specific_fields:
+                                                    field_type = field.get('type', 'Unknown')
+                                                    field_types_on_page[field_type] = field_types_on_page.get(field_type, 0) + 1
+                                                
+                                                st.markdown("**Field Types:**")
+                                                for field_type, count in field_types_on_page.items():
+                                                    st.write(f"• {field_type}: {count}")
+                                                
+                                                st.markdown("**Field Details:**")
+                                                for i, field in enumerate(page_specific_fields, 1):
+                                                    field_name = field.get('name', f'Field_{i}')
+                                                    field_type = field.get('type', 'Unknown')
+                                                    required = "Required" if field.get('required', False) else "Optional"
+                                                    st.write(f"{i}. **{field_name}**")
+                                                    st.write(f"   Type: {field_type}")
+                                                    st.write(f"   Status: {required}")
+                                                    if field.get('default_value'):
+                                                        st.write(f"   Default: {field.get('default_value')}")
+                                                    st.write("---")
+                                            else:
+                                                st.info("No fillable fields detected on this page.")
+                                                st.write("This page may contain:")
+                                                st.write("• Static text content")
+                                                st.write("• Images or graphics")
+                                                st.write("• Non-interactive elements")
+                                
+                                    # Close the PDF document after all processing
+                                    pdf_document.close()
+                                
                                 else:
                                     st.warning("Could not render PDF preview - no pages generated.")
                         except ImportError as e:
