@@ -314,9 +314,18 @@ def display_pdf_analysis(result, file_index, total_files):
             if page != "Unknown":
                 page_field_counts[page] = page_field_counts.get(page, 0) + 1
         
-        # Create expandable sections for each page (limit to reasonable number)
-        max_pages = max(page_field_counts.keys()) if page_field_counts else 1
-        for page_num in range(1, min(max_pages + 1, 7)):  # Show up to 6 pages
+        # Create expandable sections for each page
+        try:
+            # Open PDF to get actual page count
+            pdf_document = fitz.open(stream=pdf_bytes, filetype="pdf")
+            actual_page_count = len(pdf_document)
+            pdf_document.close()
+        except:
+            actual_page_count = max(page_field_counts.keys()) if page_field_counts else 1
+        
+        # Show all pages, limited to reasonable number for performance
+        max_pages_to_show = min(actual_page_count, 10)
+        for page_num in range(1, max_pages_to_show + 1):
             page_fields = page_field_counts.get(page_num, 0)
             
             # Create expander title with page info
