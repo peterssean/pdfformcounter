@@ -88,15 +88,17 @@ class PDFFormAnalyzer:
         # Always try the alternative method to catch any missed fields
         alternative_fields = self._extract_fields_alternative_method(pdf_reader)
         
-        # Merge fields, avoiding duplicates
-        existing_names = {f.get("name", "") for f in fields}
+        # Merge fields, avoiding duplicates based on name and page
+        existing_field_keys = {(f.get("name", ""), f.get("page", 0)) for f in fields}
         for alt_field in alternative_fields:
-            if alt_field.get("name", "") not in existing_names:
+            field_key = (alt_field.get("name", ""), alt_field.get("page", 0))
+            if field_key not in existing_field_keys and alt_field.get("name", "").strip():
                 fields.append(alt_field)
+                existing_field_keys.add(field_key)
         
         return fields
     
-    def _process_field_recursively(self, field_obj: Any, fields: List[Dict[str, Any]], parent_name: Optional[str] = None):
+    def _process_field_recursively(self, field_obj: Any, fields: List[Dict[str, Any]], parent_name: Optional[str] = None, page_num: Optional[int] = None):
         """
         Recursively process a field and its children to extract all form fields.
         
@@ -104,24 +106,35 @@ class PDFFormAnalyzer:
             field_obj: The field object from PyPDF2
             fields: List to append found fields to
             parent_name: Name of parent field if this is a child field
+            page_num: Page number where this field is located
         """
         try:
             # Parse current field
             field_info = self._parse_field(field_obj, parent_name)
-            if field_info and field_info.get("name"):
-                # Check if we already have this field
-                existing_names = [f.get("name", "") for f in fields]
-                if field_info.get("name") not in existing_names:
+            if field_info and field_info.get("name") and field_info.get("name").strip():
+                # Assign page number if provided
+                if page_num:
+                    field_info["page"] = page_num
+                
+                # Check for duplicates using name and page combination
+                field_key = (field_info.get("name", ""), field_info.get("page", 0))
+                existing_keys = [(f.get("name", ""), f.get("page", 0)) for f in fields]
+                if field_key not in existing_keys:
                     fields.append(field_info)
             
-            # Process child fields
+            # Process child fields - check if this is a parent with actual form widgets as children
             if "/Kids" in field_obj:
                 kids = field_obj["/Kids"]
                 current_name = field_info.get("name") if field_info else parent_name
+                
                 for kid_ref in kids:
                     try:
                         kid_obj = kid_ref.get_object()
-                        self._process_field_recursively(kid_obj, fields, current_name)
+                        
+                        # If the kid has form field properties, process it
+                        if any(key in kid_obj for key in ["/FT", "/T", "/Subtype"]):
+                            self._process_field_recursively(kid_obj, fields, current_name, page_num)
+                        
                     except Exception:
                         continue
         except Exception:
@@ -242,30 +255,6 @@ class PDFFormAnalyzer:
                                         field_info["rect"] = str(annot["/Rect"])
                                     fields.append(field_info)
                             
-                            # Also check for other annotation types that might be form fields
-                            elif "/Subtype" in annot:
-                                subtype = str(annot["/Subtype"])
-                                if subtype in ["/FreeText", "/Text", "/Square", "/Circle"]:
-                                    # Create a basic field entry for these annotations
-                                    field_name = f"Annotation_{page_num + 1}_{len(fields) + 1}"
-                                    if "/Contents" in annot:
-                                        content = str(annot["/Contents"])
-                                        if content.strip():
-                                            field_name = f"Text_{content[:20]}..." if len(content) > 20 else f"Text_{content}"
-                                    
-                                    field_info = {
-                                        "name": field_name,
-                                        "type": f"Annotation ({subtype[1:]})",
-                                        "page": page_num + 1,
-                                        "required": False,
-                                        "default_value": "",
-                                        "options": [],
-                                        "description": ""
-                                    }
-                                    if "/Rect" in annot:
-                                        field_info["rect"] = str(annot["/Rect"])
-                                    fields.append(field_info)
-                                    
                         except Exception:
                             continue
         except Exception:
