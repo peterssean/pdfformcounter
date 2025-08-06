@@ -3,7 +3,7 @@ import pandas as pd
 import io
 from pdf_analyzer import PDFFormAnalyzer
 import fitz  # PyMuPDF
-from PIL import Image
+from PIL import Image, ImageDraw
 
 # Set page configuration
 st.set_page_config(
@@ -12,6 +12,60 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="collapsed"
 )
+
+def highlight_fields_on_page(pdf_document, page_num, fields, zoom_factor=1.5):
+    """
+    Highlight form fields on a PDF page by drawing colored rectangles around them.
+    """
+    page = pdf_document[page_num]
+    
+    # Render page to image with good quality
+    mat = fitz.Matrix(zoom_factor, zoom_factor)
+    pix = page.get_pixmap(matrix=mat)
+    
+    # Convert to PIL Image
+    img_data = pix.tobytes("png")
+    img = Image.open(io.BytesIO(img_data))
+    
+    # Create drawing context
+    draw = ImageDraw.Draw(img)
+    
+    # Get page fields for this specific page
+    page_fields = [f for f in fields if f.get("page") == page_num + 1]
+    
+    # Try to get field rectangles from the page
+    field_highlights = 0
+    try:
+        # Get all widgets (form fields) on this page
+        widgets = page.widgets()
+        
+        for widget in widgets:
+            # Get widget rectangle
+            rect = widget.rect
+            
+            # Scale rectangle coordinates by zoom factor
+            x1, y1, x2, y2 = rect.x0 * zoom_factor, rect.y0 * zoom_factor, rect.x1 * zoom_factor, rect.y1 * zoom_factor
+            
+            # Choose color based on field type
+            field_type = getattr(widget, 'field_type', 0)
+            if field_type == 1:  # Text field
+                color = "red"
+            elif field_type == 2:  # Button/Checkbox
+                color = "blue"
+            elif field_type == 3:  # Choice/Dropdown
+                color = "green"
+            else:
+                color = "orange"
+            
+            # Draw rectangle around the field
+            draw.rectangle([x1, y1, x2, y2], outline=color, width=3)
+            field_highlights += 1
+    
+    except Exception:
+        # If we can't extract widget positions, just return the original image
+        pass
+    
+    return img, field_highlights
 
 def main():
     st.title("📄 PDF Form Field Analyzer")
@@ -75,6 +129,18 @@ def main():
                     if field_count > 0:
                         # Display PDF visualization
                         st.markdown("#### PDF Form Preview")
+                        
+                        # Add toggle for field highlighting
+                        highlight_fields = st.checkbox(
+                            "🎯 Highlight fillable fields", 
+                            value=True, 
+                            help="Show colored rectangles around detected form fields"
+                        )
+                        
+                        if highlight_fields:
+                            st.markdown("**Legend:** 🔴 Text Fields | 🔵 Buttons/Checkboxes | 🟢 Dropdowns | 🟠 Other Fields")
+                            st.info("💡 Colored rectangles will appear around fillable form fields on the PDF pages below.")
+                        
                         try:
                             # Convert PDF to images using PyMuPDF
                             with st.spinner("Rendering PDF preview..."):
@@ -85,15 +151,22 @@ def main():
                                 # Limit to first 3 pages for performance
                                 pages_to_show = min(3, page_count)
                                 page_images = []
+                                highlighted_counts = []
                                 
                                 for page_num in range(pages_to_show):
-                                    page = pdf_document[page_num]
-                                    # Render page to image with good quality
-                                    mat = fitz.Matrix(1.5, 1.5)  # zoom factor
-                                    pix = page.get_pixmap(matrix=mat)
-                                    # Convert to PIL Image
-                                    img_data = pix.tobytes("png")
-                                    img = Image.open(io.BytesIO(img_data))
+                                    if highlight_fields:
+                                        # Use highlighting function
+                                        img, highlighted_count = highlight_fields_on_page(pdf_document, page_num, fields)
+                                        highlighted_counts.append(highlighted_count)
+                                    else:
+                                        # Render normal page
+                                        page = pdf_document[page_num]
+                                        mat = fitz.Matrix(1.5, 1.5)  # zoom factor
+                                        pix = page.get_pixmap(matrix=mat)
+                                        img_data = pix.tobytes("png")
+                                        img = Image.open(io.BytesIO(img_data))
+                                        highlighted_counts.append(0)
+                                    
                                     page_images.append(img)
                                 
                                 pdf_document.close()
@@ -101,14 +174,32 @@ def main():
                                 if page_images:
                                     st.success(f"✅ Successfully rendered {len(page_images)} page(s)")
                                     
+                                    # Group fields by page for display
+                                    page_field_counts = {}
+                                    for field in fields:
+                                        page = field.get("page", "Unknown")
+                                        if page != "Unknown":
+                                            page_field_counts[page] = page_field_counts.get(page, 0) + 1
+                                    
                                     # Display PDF pages in columns
                                     if len(page_images) == 1:
-                                        st.image(page_images[0], caption=f"Page 1 - {field_count} fillable fields detected", use_column_width=True)
+                                        page_fields = page_field_counts.get(1, 0)
+                                        if highlight_fields and len(highlighted_counts) > 0:
+                                            caption = f"Page 1 - {page_fields} fields ({highlighted_counts[0]} highlighted)"
+                                        else:
+                                            caption = f"Page 1 - {page_fields} fillable fields detected"
+                                        st.image(page_images[0], caption=caption, use_container_width=True)
                                     else:
                                         cols = st.columns(min(len(page_images), 3))
                                         for i, page_img in enumerate(page_images):
                                             with cols[i]:
-                                                st.image(page_img, caption=f"Page {i+1}", use_column_width=True)
+                                                page_num = i + 1
+                                                page_fields = page_field_counts.get(page_num, 0)
+                                                if highlight_fields and i < len(highlighted_counts):
+                                                    caption = f"Page {page_num} - {page_fields} fields ({highlighted_counts[i]} highlighted)"
+                                                else:
+                                                    caption = f"Page {page_num} - {page_fields} fields"
+                                                st.image(page_img, caption=caption, use_container_width=True)
                                         
                                         if page_count > 3:
                                             st.info(f"Showing first 3 pages. PDF contains {page_count} total pages.")
@@ -122,6 +213,20 @@ def main():
                             st.info("The field counting and analysis features are still working normally.")
                         
                         st.markdown("---")
+                        
+                        # Explanation of what's being counted
+                        with st.expander("ℹ️ What counts as a fillable field?", expanded=False):
+                            st.markdown("""
+                            **Fillable fields detected by this analyzer include:**
+                            - **Text Fields** 📝: Input boxes where users can type text, numbers, or dates
+                            - **Checkboxes** ☑️: Square boxes that can be checked or unchecked
+                            - **Radio Buttons** 🔘: Circular buttons for selecting one option from a group
+                            - **Dropdown Lists** 📋: Menus that expand to show multiple choice options
+                            - **Signature Fields** ✍️: Areas designated for digital signatures
+                            - **Push Buttons** 🔲: Interactive buttons that trigger actions
+                            
+                            **Note:** Only interactive form elements are counted. Regular text, images, or non-interactive content is not included in the count.
+                            """)
                         
                         # Summary metrics
                         col1, col2, col3 = st.columns(3)
