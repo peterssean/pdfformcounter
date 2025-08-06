@@ -326,10 +326,7 @@ def display_pdf_analysis(result, file_index, total_files):
             else:
                 expander_title += " - No fillable fields detected"
             
-            # Unique key for each expander in batch mode
-            expander_key = f"page_expander_{file_index}_{page_num}_{result['filename']}" if total_files > 1 else f"page_expander_{page_num}"
-            
-            with st.expander(expander_title, expanded=False, key=expander_key):
+            with st.expander(expander_title, expanded=False):
                 # Two columns: image and field details
                 col1, col2 = st.columns([2, 1])
                 

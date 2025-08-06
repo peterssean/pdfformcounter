@@ -80,24 +80,52 @@ class PDFFormAnalyzer:
                     
                     for field_ref in form_fields:
                         field_obj = field_ref.get_object()
-                        field_info = self._parse_field(field_obj)
-                        if field_info:
-                            fields.append(field_info)
-                            
-                            # Check for child fields (for hierarchical forms)
-                            if "/Kids" in field_obj:
-                                kids = field_obj["/Kids"]
-                                for kid_ref in kids:
-                                    kid_obj = kid_ref.get_object()
-                                    kid_info = self._parse_field(kid_obj, parent_name=field_info.get("name"))
-                                    if kid_info:
-                                        fields.append(kid_info)
+                        self._process_field_recursively(field_obj, fields)
             
         except Exception as e:
-            # If field extraction fails, try alternative method
-            fields.extend(self._extract_fields_alternative_method(pdf_reader))
+            pass
+        
+        # Always try the alternative method to catch any missed fields
+        alternative_fields = self._extract_fields_alternative_method(pdf_reader)
+        
+        # Merge fields, avoiding duplicates
+        existing_names = {f.get("name", "") for f in fields}
+        for alt_field in alternative_fields:
+            if alt_field.get("name", "") not in existing_names:
+                fields.append(alt_field)
         
         return fields
+    
+    def _process_field_recursively(self, field_obj: Any, fields: List[Dict[str, Any]], parent_name: Optional[str] = None):
+        """
+        Recursively process a field and its children to extract all form fields.
+        
+        Args:
+            field_obj: The field object from PyPDF2
+            fields: List to append found fields to
+            parent_name: Name of parent field if this is a child field
+        """
+        try:
+            # Parse current field
+            field_info = self._parse_field(field_obj, parent_name)
+            if field_info and field_info.get("name"):
+                # Check if we already have this field
+                existing_names = [f.get("name", "") for f in fields]
+                if field_info.get("name") not in existing_names:
+                    fields.append(field_info)
+            
+            # Process child fields
+            if "/Kids" in field_obj:
+                kids = field_obj["/Kids"]
+                current_name = field_info.get("name") if field_info else parent_name
+                for kid_ref in kids:
+                    try:
+                        kid_obj = kid_ref.get_object()
+                        self._process_field_recursively(kid_obj, fields, current_name)
+                    except Exception:
+                        continue
+        except Exception:
+            pass
     
     def _parse_field(self, field_obj: Any, parent_name: Optional[str] = None) -> Optional[Dict[str, Any]]:
         """
@@ -185,7 +213,7 @@ class PDFFormAnalyzer:
     
     def _extract_fields_alternative_method(self, pdf_reader: PyPDF2.PdfReader) -> List[Dict[str, Any]]:
         """
-        Alternative method to extract fields by iterating through pages.
+        Alternative method to extract fields by iterating through pages and annotations.
         
         Args:
             pdf_reader: PyPDF2 PdfReader object
@@ -207,13 +235,39 @@ class PDFFormAnalyzer:
                             # Check if this is a widget annotation (form field)
                             if "/Subtype" in annot and str(annot["/Subtype"]) == "/Widget":
                                 field_info = self._parse_field(annot)
-                                if field_info and field_info not in fields:
+                                if field_info and field_info.get("name"):
                                     field_info["page"] = page_num + 1
+                                    # Add rectangle coordinates if available
+                                    if "/Rect" in annot:
+                                        field_info["rect"] = str(annot["/Rect"])
+                                    fields.append(field_info)
+                            
+                            # Also check for other annotation types that might be form fields
+                            elif "/Subtype" in annot:
+                                subtype = str(annot["/Subtype"])
+                                if subtype in ["/FreeText", "/Text", "/Square", "/Circle"]:
+                                    # Create a basic field entry for these annotations
+                                    field_name = f"Annotation_{page_num + 1}_{len(fields) + 1}"
+                                    if "/Contents" in annot:
+                                        content = str(annot["/Contents"])
+                                        if content.strip():
+                                            field_name = f"Text_{content[:20]}..." if len(content) > 20 else f"Text_{content}"
+                                    
+                                    field_info = {
+                                        "name": field_name,
+                                        "type": f"Annotation ({subtype[1:]})",
+                                        "page": page_num + 1,
+                                        "required": False,
+                                        "default_value": "",
+                                        "options": [],
+                                        "description": ""
+                                    }
+                                    if "/Rect" in annot:
+                                        field_info["rect"] = str(annot["/Rect"])
                                     fields.append(field_info)
                                     
                         except Exception:
                             continue
-                            
         except Exception:
             pass
         
