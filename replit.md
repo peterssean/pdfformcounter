@@ -38,7 +38,9 @@ Preferred communication style: Simple, everyday language.
 ### Core Libraries
 - **Streamlit**: Web application framework for creating the user interface and handling file uploads
 - **PyPDF2**: PDF processing library for reading PDF structure and extracting form field information
+- **PyMuPDF (fitz)**: PDF rendering library for converting PDF pages to images for visual preview
 - **Pandas**: Data manipulation library for organizing and displaying analysis results
+- **Pillow (PIL)**: Image processing library for handling rendered PDF page images
 - **io**: Python standard library for handling byte streams and file-like objects
 
 ### Runtime Environment

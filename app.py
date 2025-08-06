@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import io
 from pdf_analyzer import PDFFormAnalyzer
-from pdf2image import convert_from_bytes
+import fitz  # PyMuPDF
 from PIL import Image
 
 # Set page configuration
@@ -76,36 +76,46 @@ def main():
                         # Display PDF visualization
                         st.markdown("#### PDF Form Preview")
                         try:
-                            # Convert PDF to images for visualization
+                            # Convert PDF to images using PyMuPDF
                             with st.spinner("Rendering PDF preview..."):
-                                # Try different DPI settings for better compatibility
-                                pages = convert_from_bytes(
-                                    pdf_bytes, 
-                                    dpi=120,  # Lower DPI for better performance
-                                    first_page=1, 
-                                    last_page=min(3, 10),  # Limit to first 3 pages
-                                    fmt='PNG',  # Specify format
-                                    thread_count=1  # Single thread for stability
-                                )
+                                # Open PDF from bytes
+                                pdf_document = fitz.open(stream=pdf_bytes, filetype="pdf")
+                                page_count = len(pdf_document)
                                 
-                                if pages:
-                                    st.success(f"✅ Successfully rendered {len(pages)} page(s)")
+                                # Limit to first 3 pages for performance
+                                pages_to_show = min(3, page_count)
+                                page_images = []
+                                
+                                for page_num in range(pages_to_show):
+                                    page = pdf_document[page_num]
+                                    # Render page to image with good quality
+                                    mat = fitz.Matrix(1.5, 1.5)  # zoom factor
+                                    pix = page.get_pixmap(matrix=mat)
+                                    # Convert to PIL Image
+                                    img_data = pix.tobytes("png")
+                                    img = Image.open(io.BytesIO(img_data))
+                                    page_images.append(img)
+                                
+                                pdf_document.close()
+                                
+                                if page_images:
+                                    st.success(f"✅ Successfully rendered {len(page_images)} page(s)")
                                     
                                     # Display PDF pages in columns
-                                    if len(pages) == 1:
-                                        st.image(pages[0], caption=f"Page 1 - {field_count} fillable fields detected", use_column_width=True)
+                                    if len(page_images) == 1:
+                                        st.image(page_images[0], caption=f"Page 1 - {field_count} fillable fields detected", use_column_width=True)
                                     else:
-                                        cols = st.columns(min(len(pages), 3))
-                                        for i, page in enumerate(pages[:3]):
+                                        cols = st.columns(min(len(page_images), 3))
+                                        for i, page_img in enumerate(page_images):
                                             with cols[i]:
-                                                st.image(page, caption=f"Page {i+1}", use_column_width=True)
+                                                st.image(page_img, caption=f"Page {i+1}", use_column_width=True)
                                         
-                                        if len(pages) > 3:
-                                            st.info(f"Showing first 3 pages. PDF contains {len(pages)} total pages.")
+                                        if page_count > 3:
+                                            st.info(f"Showing first 3 pages. PDF contains {page_count} total pages.")
                                 else:
-                                    st.warning("Could not render PDF preview - no pages returned.")
+                                    st.warning("Could not render PDF preview - no pages generated.")
                         except ImportError as e:
-                            st.error("PDF visualization requires additional system dependencies. The field analysis will continue to work.")
+                            st.error("PDF visualization library not available. The field analysis will continue to work.")
                             st.info("Note: PDF preview feature is temporarily unavailable.")
                         except Exception as e:
                             st.warning(f"PDF preview unavailable: {str(e)}")
