@@ -19,19 +19,23 @@ st.markdown("""
 /* Import Google Fonts */
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
-/* Global Variables */
+/* Global Variables - Light Theme */
 :root {
-    --primary-color: #2563eb;
-    --primary-hover: #1d4ed8;
-    --secondary-color: #64748b;
-    --success-color: #059669;
-    --warning-color: #d97706;
-    --error-color: #dc2626;
+    --primary-color: #3b82f6;
+    --primary-hover: #2563eb;
+    --primary-light: #dbeafe;
+    --secondary-color: #6b7280;
+    --success-color: #10b981;
+    --warning-color: #f59e0b;
+    --error-color: #ef4444;
     --background: #ffffff;
-    --card-background: #f8fafc;
-    --border-color: #e2e8f0;
-    --text-primary: #1e293b;
-    --text-secondary: #64748b;
+    --card-background: #ffffff;
+    --surface: #f9fafb;
+    --border-color: #e5e7eb;
+    --border-light: #f3f4f6;
+    --text-primary: #111827;
+    --text-secondary: #6b7280;
+    --text-muted: #9ca3af;
     --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
     --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
     --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
@@ -67,11 +71,11 @@ h2, h3, h4 {
     color: var(--text-primary) !important;
 }
 
-/* Upload Area Styling */
+/* Upload Area Styling - Light Theme */
 .stFileUploader > div > div {
     border: 2px dashed var(--border-color) !important;
     border-radius: var(--radius-lg) !important;
-    background: var(--card-background) !important;
+    background: var(--surface) !important;
     padding: 3rem !important;
     text-align: center !important;
     transition: all 0.2s ease !important;
@@ -80,7 +84,7 @@ h2, h3, h4 {
 
 .stFileUploader > div > div:hover {
     border-color: var(--primary-color) !important;
-    background: #f0f9ff !important;
+    background: var(--primary-light) !important;
     transform: translateY(-2px) !important;
 }
 
@@ -129,13 +133,13 @@ h2, h3, h4 {
     border: 1px solid var(--border-color) !important;
 }
 
-/* Tab Styling */
+/* Tab Styling - Light Theme */
 .stTabs [data-baseweb="tab-list"] {
-    gap: 1rem;
-    background: var(--card-background);
-    padding: 0.5rem;
+    gap: 0.5rem;
+    background: var(--surface);
+    padding: 0.25rem;
     border-radius: var(--radius-lg);
-    border: 1px solid var(--border-color);
+    border: 1px solid var(--border-light);
 }
 
 .stTabs [data-baseweb="tab"] {
@@ -145,17 +149,19 @@ h2, h3, h4 {
     font-weight: 500 !important;
     padding: 0.75rem 1rem !important;
     transition: all 0.2s ease !important;
+    border: none !important;
 }
 
 .stTabs [aria-selected="true"] {
-    background: white !important;
-    color: var(--primary-color) !important;
+    background: var(--card-background) !important;
+    color: var(--text-primary) !important;
     box-shadow: var(--shadow-sm) !important;
+    border: 1px solid var(--border-color) !important;
 }
 
-/* Expander Styling */
+/* Expander Styling - Light Theme */
 .streamlit-expanderHeader {
-    background: var(--card-background) !important;
+    background: var(--surface) !important;
     border: 1px solid var(--border-color) !important;
     border-radius: var(--radius-md) !important;
     font-weight: 500 !important;
@@ -166,12 +172,13 @@ h2, h3, h4 {
 }
 
 .streamlit-expanderHeader:hover {
-    background: white !important;
+    background: var(--card-background) !important;
     box-shadow: var(--shadow-sm) !important;
+    border-color: var(--primary-color) !important;
 }
 
 .streamlit-expanderContent {
-    background: white !important;
+    background: var(--card-background) !important;
     border: 1px solid var(--border-color) !important;
     border-top: none !important;
     border-radius: 0 0 var(--radius-md) var(--radius-md) !important;
@@ -245,9 +252,9 @@ h2, h3, h4 {
     visibility: hidden !important;
 }
 
-/* Custom metric cards */
+/* Custom metric cards - Light Theme */
 [data-testid="metric-container"] {
-    background: linear-gradient(135deg, #f8fafc, #e2e8f0);
+    background: var(--card-background);
     border: 1px solid var(--border-color);
     border-radius: var(--radius-lg);
     padding: 1.5rem;
@@ -258,6 +265,7 @@ h2, h3, h4 {
 [data-testid="metric-container"]:hover {
     transform: translateY(-2px);
     box-shadow: var(--shadow-md);
+    border-color: var(--primary-color);
 }
 
 [data-testid="metric-container"] [data-testid="metric-label"] {
@@ -713,12 +721,13 @@ def main():
     with col2:
         # Modern info card
         st.markdown("""
-        <div style="background: linear-gradient(135deg, #f8fafc, #e2e8f0); 
+        <div style="background: var(--card-background); 
                     border: 1px solid var(--border-color); 
                     border-radius: var(--radius-lg); 
                     padding: 1.5rem; 
-                    margin-bottom: 1rem;">
-            <h3 style="color: var(--text-primary); margin-bottom: 1rem; font-size: 1.125rem;">✨ Supported Field Types</h3>
+                    margin-bottom: 1rem;
+                    box-shadow: var(--shadow-sm);">
+            <h3 style="color: var(--text-primary); margin-bottom: 1rem; font-size: 1.125rem; font-weight: 600;">✨ Supported Field Types</h3>
         """, unsafe_allow_html=True)
         
         field_types = [
@@ -738,12 +747,13 @@ def main():
         
         # Help section
         st.markdown("""
-        <div style="background: #f0f9ff; 
-                    border: 1px solid #bfdbfe; 
+        <div style="background: var(--primary-light); 
+                    border: 1px solid var(--primary-color); 
                     border-radius: var(--radius-lg); 
-                    padding: 1.25rem;">
-            <h4 style="color: var(--primary-color); margin-bottom: 0.75rem; font-size: 0.95rem;">💡 Field Counting</h4>
-            <p style="font-size: 0.85rem; color: var(--text-secondary); margin: 0;">
+                    padding: 1.25rem;
+                    box-shadow: var(--shadow-sm);">
+            <h4 style="color: var(--primary-color); margin-bottom: 0.75rem; font-size: 0.95rem; font-weight: 600;">💡 Field Counting</h4>
+            <p style="font-size: 0.85rem; color: var(--text-primary); margin: 0; line-height: 1.5;">
                 Each interactive element counts as one field. Groups of radio buttons are counted individually.
             </p>
         </div>
