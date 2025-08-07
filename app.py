@@ -13,6 +13,269 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
+# Custom CSS for modern UI
+st.markdown("""
+<style>
+/* Import Google Fonts */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+/* Global Variables */
+:root {
+    --primary-color: #2563eb;
+    --primary-hover: #1d4ed8;
+    --secondary-color: #64748b;
+    --success-color: #059669;
+    --warning-color: #d97706;
+    --error-color: #dc2626;
+    --background: #ffffff;
+    --card-background: #f8fafc;
+    --border-color: #e2e8f0;
+    --text-primary: #1e293b;
+    --text-secondary: #64748b;
+    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+    --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+    --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+    --radius-sm: 0.375rem;
+    --radius-md: 0.5rem;
+    --radius-lg: 0.75rem;
+}
+
+/* Main App Styling */
+.main .block-container {
+    padding-top: 2rem;
+    max-width: 1200px;
+    font-family: 'Inter', sans-serif;
+}
+
+/* Header Styling */
+h1 {
+    font-family: 'Inter', sans-serif !important;
+    font-weight: 700 !important;
+    font-size: 2.5rem !important;
+    color: var(--text-primary) !important;
+    margin-bottom: 0.5rem !important;
+    text-align: center !important;
+    background: linear-gradient(135deg, var(--primary-color), var(--primary-hover));
+    -webkit-background-clip: text !important;
+    -webkit-text-fill-color: transparent !important;
+    background-clip: text !important;
+}
+
+h2, h3, h4 {
+    font-family: 'Inter', sans-serif !important;
+    font-weight: 600 !important;
+    color: var(--text-primary) !important;
+}
+
+/* Upload Area Styling */
+.stFileUploader > div > div {
+    border: 2px dashed var(--border-color) !important;
+    border-radius: var(--radius-lg) !important;
+    background: var(--card-background) !important;
+    padding: 3rem !important;
+    text-align: center !important;
+    transition: all 0.2s ease !important;
+    position: relative !important;
+}
+
+.stFileUploader > div > div:hover {
+    border-color: var(--primary-color) !important;
+    background: #f0f9ff !important;
+    transform: translateY(-2px) !important;
+}
+
+.stFileUploader > div > div::before {
+    content: "📄";
+    font-size: 3rem;
+    display: block;
+    margin-bottom: 1rem;
+}
+
+/* Metrics Card Container */
+.metric-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1.5rem;
+    margin: 2rem 0;
+}
+
+/* Status Badges */
+.status-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.25rem 0.75rem;
+    border-radius: 9999px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.status-success {
+    background: #d1fae5;
+    color: var(--success-color);
+}
+
+.status-error {
+    background: #fee2e2;
+    color: var(--error-color);
+}
+
+/* Table Styling */
+.stDataFrame {
+    border-radius: var(--radius-md) !important;
+    overflow: hidden !important;
+    box-shadow: var(--shadow-sm) !important;
+    border: 1px solid var(--border-color) !important;
+}
+
+/* Tab Styling */
+.stTabs [data-baseweb="tab-list"] {
+    gap: 1rem;
+    background: var(--card-background);
+    padding: 0.5rem;
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--border-color);
+}
+
+.stTabs [data-baseweb="tab"] {
+    background: transparent !important;
+    border-radius: var(--radius-md) !important;
+    color: var(--text-secondary) !important;
+    font-weight: 500 !important;
+    padding: 0.75rem 1rem !important;
+    transition: all 0.2s ease !important;
+}
+
+.stTabs [aria-selected="true"] {
+    background: white !important;
+    color: var(--primary-color) !important;
+    box-shadow: var(--shadow-sm) !important;
+}
+
+/* Expander Styling */
+.streamlit-expanderHeader {
+    background: var(--card-background) !important;
+    border: 1px solid var(--border-color) !important;
+    border-radius: var(--radius-md) !important;
+    font-weight: 500 !important;
+    color: var(--text-primary) !important;
+    margin-bottom: 0.5rem !important;
+    padding: 1rem !important;
+    transition: all 0.2s ease !important;
+}
+
+.streamlit-expanderHeader:hover {
+    background: white !important;
+    box-shadow: var(--shadow-sm) !important;
+}
+
+.streamlit-expanderContent {
+    background: white !important;
+    border: 1px solid var(--border-color) !important;
+    border-top: none !important;
+    border-radius: 0 0 var(--radius-md) var(--radius-md) !important;
+    padding: 1.5rem !important;
+    box-shadow: var(--shadow-sm) !important;
+}
+
+/* Button Styling */
+.stButton > button {
+    background: var(--primary-color) !important;
+    color: white !important;
+    border: none !important;
+    border-radius: var(--radius-md) !important;
+    font-weight: 500 !important;
+    padding: 0.75rem 1.5rem !important;
+    transition: all 0.2s ease !important;
+    box-shadow: var(--shadow-sm) !important;
+    font-family: 'Inter', sans-serif !important;
+}
+
+.stButton > button:hover {
+    background: var(--primary-hover) !important;
+    box-shadow: var(--shadow-md) !important;
+    transform: translateY(-1px) !important;
+}
+
+/* Progress Bar */
+.stProgress > div > div {
+    background: linear-gradient(90deg, var(--primary-color), var(--primary-hover)) !important;
+    border-radius: 9999px !important;
+    height: 0.75rem !important;
+}
+
+.stProgress > div {
+    background: var(--border-color) !important;
+    border-radius: 9999px !important;
+}
+
+/* Alert Styling */
+.stAlert {
+    border-radius: var(--radius-md) !important;
+    border: none !important;
+    box-shadow: var(--shadow-sm) !important;
+    font-family: 'Inter', sans-serif !important;
+}
+
+/* Chart Container */
+.chart-container {
+    background: white;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    padding: 1.5rem;
+    box-shadow: var(--shadow-sm);
+    margin: 1rem 0;
+}
+
+/* Custom spacing */
+.section-spacing {
+    margin: 2rem 0;
+}
+
+.divider {
+    border: none;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--border-color), transparent);
+    margin: 2rem 0;
+}
+
+/* Hide Streamlit Branding */
+.css-1rs6os, .css-17ziqus, #MainMenu, footer, header {
+    visibility: hidden !important;
+}
+
+/* Custom metric cards */
+[data-testid="metric-container"] {
+    background: linear-gradient(135deg, #f8fafc, #e2e8f0);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    padding: 1.5rem;
+    box-shadow: var(--shadow-sm);
+    transition: all 0.2s ease;
+}
+
+[data-testid="metric-container"]:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
+}
+
+[data-testid="metric-container"] [data-testid="metric-label"] {
+    color: var(--text-secondary) !important;
+    font-size: 0.875rem !important;
+    font-weight: 500 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.05em !important;
+}
+
+[data-testid="metric-container"] [data-testid="metric-value"] {
+    color: var(--primary-color) !important;
+    font-size: 2rem !important;
+    font-weight: 700 !important;
+}
+</style>
+""", unsafe_allow_html=True)
+
 def highlight_fields_on_page(pdf_document, page_num, fields, zoom_factor=1.5):
     """
     Highlight form fields on a PDF page by drawing colored rectangles around them.
@@ -406,8 +669,17 @@ def display_pdf_analysis(result, file_index, total_files):
         st.write("• Non-interactive elements")
 
 def main():
-    st.title("📄 PDF Form Field Analyzer")
-    st.markdown("Upload PDF forms to analyze and count fillable fields")
+    # Modern header with improved design
+    st.markdown("""
+    <div style="text-align: center; margin-bottom: 2rem;">
+        <h1 style="margin-bottom: 0.5rem;">📄 PDF Form Field Analyzer</h1>
+        <p style="font-size: 1.25rem; color: var(--text-secondary); margin-bottom: 0; font-weight: 400;">
+            Upload PDF forms to analyze and count fillable fields with precision
+        </p>
+        <div style="width: 60px; height: 4px; background: linear-gradient(90deg, var(--primary-color), var(--primary-hover)); 
+                    margin: 1rem auto; border-radius: 2px;"></div>
+    </div>
+    """, unsafe_allow_html=True)
     
     # Create two columns for better layout
     col1, col2 = st.columns([2, 1])
@@ -439,15 +711,43 @@ def main():
             )
     
     with col2:
-        st.markdown("### Supported Field Types")
+        # Modern info card
         st.markdown("""
-        - Text fields
-        - Checkboxes  
-        - Radio buttons
-        - Dropdown lists
-        - Signature fields
-        - Button fields
-        """)
+        <div style="background: linear-gradient(135deg, #f8fafc, #e2e8f0); 
+                    border: 1px solid var(--border-color); 
+                    border-radius: var(--radius-lg); 
+                    padding: 1.5rem; 
+                    margin-bottom: 1rem;">
+            <h3 style="color: var(--text-primary); margin-bottom: 1rem; font-size: 1.125rem;">✨ Supported Field Types</h3>
+        """, unsafe_allow_html=True)
+        
+        field_types = [
+            ("📝", "Text Fields"), ("☑️", "Checkboxes"), ("🔘", "Radio Buttons"),
+            ("📋", "Dropdown Lists"), ("✍️", "Signature Fields"), ("🖱️", "Button Fields")
+        ]
+        
+        for icon, name in field_types:
+            st.markdown(f"""
+            <div style="margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
+                <span style="font-size: 1.1rem;">{icon}</span>
+                <span style="color: var(--text-primary); font-weight: 500;">{name}</span>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        st.markdown("</div>", unsafe_allow_html=True)
+        
+        # Help section
+        st.markdown("""
+        <div style="background: #f0f9ff; 
+                    border: 1px solid #bfdbfe; 
+                    border-radius: var(--radius-lg); 
+                    padding: 1.25rem;">
+            <h4 style="color: var(--primary-color); margin-bottom: 0.75rem; font-size: 0.95rem;">💡 Field Counting</h4>
+            <p style="font-size: 0.85rem; color: var(--text-secondary); margin: 0;">
+                Each interactive element counts as one field. Groups of radio buttons are counted individually.
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
     
     if uploaded_files is not None and len(uploaded_files) > 0:
         # Display file information and batch summary
