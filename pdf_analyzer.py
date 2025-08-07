@@ -80,7 +80,10 @@ class PDFFormAnalyzer:
                     
                     for field_ref in form_fields:
                         field_obj = field_ref.get_object()
-                        self._process_field_recursively(field_obj, fields)
+                        
+                        # Try to determine the page number for this field
+                        page_num = self._find_field_page_number(field_obj, pdf_reader)
+                        self._process_field_recursively(field_obj, fields, page_num=page_num)
             
         except Exception as e:
             pass
@@ -96,7 +99,16 @@ class PDFFormAnalyzer:
                 fields.append(alt_field)
                 existing_field_keys.add(field_key)
         
-        return fields
+        # Final cleanup - only return fields that have valid page numbers and names
+        valid_fields = []
+        for field in fields:
+            if (field.get("name", "").strip() and 
+                field.get("page") and 
+                isinstance(field.get("page"), int) and 
+                field.get("page") > 0):
+                valid_fields.append(field)
+        
+        return valid_fields
     
     def _process_field_recursively(self, field_obj: Any, fields: List[Dict[str, Any]], parent_name: Optional[str] = None, page_num: Optional[int] = None):
         """
@@ -223,6 +235,37 @@ class PDFFormAnalyzer:
             
         except Exception:
             return None
+    
+    def _find_field_page_number(self, field_obj: Any, pdf_reader: PyPDF2.PdfReader) -> Optional[int]:
+        """
+        Find the page number where a field is located.
+        
+        Args:
+            field_obj: The field object
+            pdf_reader: PyPDF2 PdfReader object
+            
+        Returns:
+            Page number (1-indexed) or None if not found
+        """
+        try:
+            # Look for widget annotations on each page
+            for page_num, page in enumerate(pdf_reader.pages):
+                if "/Annots" in page:
+                    annotations = page["/Annots"]
+                    for annot_ref in annotations:
+                        try:
+                            annot = annot_ref.get_object()
+                            # Check if this annotation is related to our field
+                            if "/Parent" in annot and annot["/Parent"] == field_obj:
+                                return page_num + 1
+                            # Or if this is the field itself
+                            if annot == field_obj:
+                                return page_num + 1
+                        except:
+                            continue
+        except:
+            pass
+        return None
     
     def _extract_fields_alternative_method(self, pdf_reader: PyPDF2.PdfReader) -> List[Dict[str, Any]]:
         """
