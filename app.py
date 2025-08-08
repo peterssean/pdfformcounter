@@ -1,6 +1,6 @@
 import streamlit as st
 import io
-from pdf_analyzer_debug import PDFFormAnalyzerDebug as PDFFormAnalyzer
+from pdf_analyzer_focused import PDFFormAnalyzerFocused as PDFFormAnalyzer
 import pandas as pd
 import fitz  # PyMuPDF
 from PIL import Image, ImageDraw
