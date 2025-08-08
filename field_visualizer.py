@@ -15,7 +15,7 @@ class FieldVisualizer:
             'Signature Field': '#FFEAA7', # Yellow
             'Button': '#DDA0DD',          # Plum
             'List Box': '#98D8C8',        # Mint
-            'Unknown Field': '#95A5A6',   # Gray
+            'Unknown Field': '#FF69B4',   # Hot Pink - makes unknown fields very visible
             'Date Field': '#F7DC6F'       # Light yellow
         }
         

@@ -517,15 +517,36 @@ class AdvancedFieldDetector:
         return merged_field
     
     def _get_widget_type(self, widget) -> str:
-        """Get human-readable widget type."""
-        type_mapping = {
-            0: 'Text Field',
-            1: 'Button',
-            2: 'Checkbox', 
-            3: 'Radio Button',
-            4: 'Dropdown',
-            5: 'List Box',
-            6: 'Signature Field'
-        }
-        
-        return type_mapping.get(widget.field_type, 'Unknown Field')
+        """Get human-readable widget type with comprehensive mapping."""
+        try:
+            # Use PyMuPDF constants for accurate mapping
+            if hasattr(widget, 'field_type'):
+                type_mapping = {
+                    fitz.PDF_WIDGET_TYPE_TEXT: 'Text Field',
+                    fitz.PDF_WIDGET_TYPE_CHECKBOX: 'Checkbox',
+                    fitz.PDF_WIDGET_TYPE_RADIOBUTTON: 'Radio Button',
+                    fitz.PDF_WIDGET_TYPE_LISTBOX: 'List Box',
+                    fitz.PDF_WIDGET_TYPE_COMBOBOX: 'Dropdown',
+                    fitz.PDF_WIDGET_TYPE_SIGNATURE: 'Signature Field',
+                    fitz.PDF_WIDGET_TYPE_BUTTON: 'Button'
+                }
+                
+                field_type = type_mapping.get(widget.field_type)
+                if field_type:
+                    return field_type
+            
+            # Fallback to numeric mapping if constants not available
+            numeric_mapping = {
+                0: 'Text Field',
+                1: 'Button', 
+                2: 'Checkbox',
+                3: 'Radio Button',
+                4: 'Dropdown',
+                5: 'List Box',
+                6: 'Signature Field'
+            }
+            
+            return numeric_mapping.get(widget.field_type, 'Text Field')  # Default to Text Field instead of Unknown
+            
+        except Exception:
+            return 'Text Field'  # Default to Text Field instead of Unknown

@@ -190,21 +190,40 @@ def display_pdf_analysis(result, file_index, total_files):
             else:
                 st.info(f"📊 **Mixed Detection**: Combined {total_count} fields from multiple detection methods")
             
-            # Show detection method breakdown
+            # Show detection method breakdown and field types
             with st.expander("🔍 Detection Method Details", expanded=False):
-                st.markdown(f"""
-                **Advanced Layout Analysis**: {advanced_count} fields  
-                - Uses text positioning, drawing analysis, and form patterns  
-                - Highest accuracy for static PDF forms  
+                # Count field types
+                fields = result.get("fields", [])
+                field_types = {}
+                for field in fields:
+                    ftype = field.get('type', 'Unknown')
+                    field_types[ftype] = field_types.get(ftype, 0) + 1
                 
-                **Interactive Widgets**: {interactive_count} fields  
-                - Native PDF form elements  
-                - Guaranteed fillable fields  
+                col1, col2 = st.columns(2)
                 
-                **Visual Pattern Detection**: {visual_count} fields  
-                - Checkbox symbols, underlines, rectangles  
-                - Captures visually apparent fields  
-                """)
+                with col1:
+                    st.markdown("**Detection Methods:**")
+                    st.markdown(f"""
+                    • **Advanced Layout Analysis**: {advanced_count} fields  
+                      - Text positioning and form patterns  
+                    • **Interactive Widgets**: {interactive_count} fields  
+                      - Native PDF form elements  
+                    • **Visual Pattern Detection**: {visual_count} fields  
+                      - Checkbox symbols and underlines  
+                    """)
+                
+                with col2:
+                    st.markdown("**Field Types Found:**")
+                    for ftype, count in sorted(field_types.items()):
+                        if ftype == 'Unknown Field':
+                            st.markdown(f"• **{ftype}**: {count} 🔍 (highlighted in pink)")
+                        else:
+                            st.markdown(f"• **{ftype}**: {count}")
+                
+                # Show warning if unknown fields exist
+                unknown_count = field_types.get('Unknown Field', 0)
+                if unknown_count > 0:
+                    st.warning(f"⚠️ {unknown_count} fields could not be classified and are highlighted in pink for review")
         else:
             st.warning("⚠️ No form fields detected - this may be a non-interactive document")
     
