@@ -158,6 +158,29 @@ def display_pdf_analysis(result, file_index, total_files):
     else:
         st.markdown("### Analysis Results")
     
+    # Display document type and field analysis insights
+    if "document_type" in result:
+        doc_type = result["document_type"]
+        interactive_count = result.get("interactive_field_count", field_count)
+        visual_count = result.get("visual_field_count", 0)
+        
+        col1, col2 = st.columns([2, 1])
+        with col1:
+            st.info(f"📄 Document Type: **{doc_type}**")
+        with col2:
+            if visual_count > interactive_count:
+                st.warning(f"📊 {visual_count} visual elements detected, {interactive_count} are interactive")
+            else:
+                st.success(f"✅ All {interactive_count} form elements are interactive")
+        
+        # Explanation for forms with visual-only fields
+        if visual_count > interactive_count and interactive_count < 10:
+            st.markdown("""
+            **ℹ️ Why fewer interactive fields?** This PDF contains visual form fields (drawn rectangles/boxes) that aren't 
+            programmatically fillable. Only truly interactive fields that can be filled digitally are counted.
+            """)
+    
+    
     if field_count > 0:
         # PDF Preview Section (collapsible)
         with st.expander("📄 PDF Form Preview", expanded=False):

@@ -45,10 +45,20 @@ class PDFFormAnalyzerFocused:
                 if not self._is_duplicate_field(field, fields):
                     fields.append(field)
             
+            # Add document type detection and analysis insights
+            doc_type, visual_field_count = self._analyze_document_type(pdf_bytes)
+            
+            message = f"Found {len(fields)} interactive form fields using focused detection"
+            if visual_field_count > len(fields):
+                message += f" (detected {visual_field_count} visual form elements that aren't interactive)"
+            
             return {
                 "success": True,
                 "fields": fields,
-                "message": f"Found {len(fields)} form fields using focused detection"
+                "message": message,
+                "document_type": doc_type,
+                "visual_field_count": visual_field_count,
+                "interactive_field_count": len(fields)
             }
             
         except Exception as e:
@@ -356,3 +366,55 @@ class PDFFormAnalyzerFocused:
                     return True
         
         return False
+    
+    def _analyze_document_type(self, pdf_bytes: bytes) -> tuple[str, int]:
+        """Analyze document type and count visual form elements."""
+        doc_type = "Unknown Document"
+        visual_field_count = 0
+        
+        try:
+            pdf_doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+            
+            if len(pdf_doc) > 0:
+                first_page_text = pdf_doc[0].get_text()
+                
+                # Detect document type
+                if "W-9" in first_page_text or "Form W-9" in first_page_text:
+                    doc_type = "IRS Form W-9"
+                elif "Autorisation de transfert" in first_page_text:
+                    doc_type = "Fidelity Transfer Authorization Form"
+                elif "1099" in first_page_text:
+                    doc_type = "IRS Form 1099"
+                elif "fidelity" in first_page_text.lower():
+                    doc_type = "Fidelity Form"
+                
+                # Count visual form elements (rectangles that look like form fields)
+                page = pdf_doc[0]
+                drawings = page.get_drawings()
+                
+                # Count rectangles that could be form fields
+                rectangular_elements = 0
+                for drawing in drawings:
+                    try:
+                        if 'items' in drawing:
+                            for item in drawing['items']:
+                                if item[0] == 're':  # Rectangle command
+                                    rect = item[1:]
+                                    if len(rect) >= 4:
+                                        width = abs(rect[2] - rect[0])
+                                        height = abs(rect[3] - rect[1])
+                                        # Check if it looks like a form field (reasonable size, not too thin)
+                                        if 10 < width < 400 and 5 < height < 50:
+                                            rectangular_elements += 1
+                    except:
+                        continue
+                
+                visual_field_count = rectangular_elements
+                print(f"Document type: {doc_type}, Visual elements: {visual_field_count}")
+            
+            pdf_doc.close()
+            
+        except Exception as e:
+            print(f"Document analysis error: {e}")
+        
+        return doc_type, visual_field_count
