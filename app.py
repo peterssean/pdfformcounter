@@ -170,16 +170,25 @@ def display_pdf_analysis(result, file_index, total_files):
         # Header with document type
         st.info(f"📄 Document Type: **{doc_type}**")
         
-        # Enhanced field count breakdown
-        col1, col2, col3, col4 = st.columns(4)
-        with col1:
-            st.metric("🎯 Total Fields", total_count, help="All detected form fields combined")
-        with col2:
-            st.metric("🔍 Advanced Detection", advanced_count, help="Fields found via layout analysis")
-        with col3:
-            st.metric("👁️ Visual Elements", visual_count, help="Pattern-based visual fields")
-        with col4:
-            st.metric("⚡ Interactive", interactive_count, help="PDF widget fields")
+        # Show appropriate metrics based on PDF type
+        is_fillable = result.get("is_fillable_pdf", False)
+        
+        if is_fillable:
+            # For fillable PDFs, show interactive field count prominently  
+            col1, col2 = st.columns(2)
+            with col1:
+                st.metric("📝 Fillable Fields", interactive_count, help="Interactive PDF form fields that users can fill")
+            with col2:
+                st.metric("📄 Total Detected", total_count, help="All form fields including visual patterns")
+        else:
+            # For static PDFs, show advanced detection prominently
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("🎯 Form Fields", total_count, help="All detected fillable areas")
+            with col2:
+                st.metric("🔍 Advanced Detection", advanced_count, help="Fields found via layout analysis")  
+            with col3:
+                st.metric("👁️ Visual Patterns", visual_count, help="Pattern-based visual fields")
         
         # Detection quality analysis
         if total_count > 0:
@@ -252,9 +261,14 @@ def display_pdf_analysis(result, file_index, total_files):
                     key=show_legend_key
                 )
             
+            if highlight_fields and show_legend:
+                # Create and show field legend
+                visualizer = FieldVisualizer()
+                legend_img = visualizer.create_field_legend()
+                st.image(legend_img, caption="Field Type Legend", width=300)
+            
             if highlight_fields:
-                st.markdown("**Legend:** 🔴 Text Fields | 🔵 Buttons/Checkboxes | 🟢 Dropdowns | 🟠 Other Fields")
-                st.info("💡 Colored rectangles will appear around fillable form fields on the PDF pages below.")
+                st.info("💡 Colored rectangles highlight fillable form fields. Colors indicate field types.")
             
             try:
                 # Convert PDF to images using PyMuPDF

@@ -53,6 +53,8 @@ class FieldVisualizer:
             # Filter fields for this page
             page_fields = [f for f in fields if f.get('page') == page_num + 1]
             
+            print(f"Page {page_num + 1} visualization: {len(page_fields)} fields to draw")
+            
             # Draw field overlays
             fields_drawn = 0
             for field in page_fields:
@@ -77,8 +79,20 @@ class FieldVisualizer:
             detection_method = field.get('detection_method', 'unknown')
             confidence = field.get('confidence', 0.5)
             
+            # Skip fields with invalid rectangles
+            if len(rect) != 4:
+                return False
+                
+            # Check for completely invalid rectangles (like signature envelope fields)
+            if (rect[0] == 0.0 and rect[1] == 792.0 and rect[2] == 0.0 and rect[3] == 792.0) or all(coord == 0 for coord in rect):
+                return False
+            
             # Scale rectangle coordinates
             x1, y1, x2, y2 = [coord * zoom_factor for coord in rect]
+            
+            # Make sure rectangle has valid dimensions after scaling
+            if abs(x2 - x1) < 1 or abs(y2 - y1) < 1:
+                return False
             
             # Get color and style
             color = self.field_colors.get(field_type, self.field_colors['Unknown Field'])

@@ -63,27 +63,47 @@ class PDFFormAnalyzerFocused:
             visual_fields = visual_result.get("fields", []) if visual_result.get("success") else []
             print(f"Visual detector found {len(visual_fields)} visual form elements")
             
-            # Combine all detection methods intelligently
-            all_fields = []
-            
-            # Start with advanced detection as the base
-            all_fields.extend(advanced_fields)
-            
-            # Add interactive fields that weren't captured by advanced detection
-            for interactive_field in interactive_fields:
-                if not self._is_duplicate_field(interactive_field, all_fields):
-                    interactive_field['is_interactive'] = True
-                    all_fields.append(interactive_field)
-            
-            # Add visual fields that weren't captured by other methods
-            for visual_field in visual_fields:
-                if not self._is_duplicate_field(visual_field, all_fields):
-                    all_fields.append(visual_field)
+            # For fillable PDFs with many interactive widgets, prioritize those for accurate counts
+            if len(interactive_fields) > 50:  # This is a fillable PDF form
+                print(f"Fillable PDF detected with {len(interactive_fields)} interactive widgets")
+                all_fields = interactive_fields.copy()
+                for field in all_fields:
+                    field['is_interactive'] = True
+                    
+                # Only add non-interactive fields that don't overlap with interactive ones
+                for advanced_field in advanced_fields:
+                    if not self._is_duplicate_field(advanced_field, all_fields):
+                        all_fields.append(advanced_field)
+                        
+                for visual_field in visual_fields:
+                    if not self._is_duplicate_field(visual_field, all_fields):
+                        all_fields.append(visual_field)
+            else:
+                # Static PDF - use advanced detection as primary with all methods
+                print(f"Static PDF detected - using advanced detection")
+                all_fields = []
+                
+                # Start with advanced detection as the base
+                all_fields.extend(advanced_fields)
+                
+                # Add interactive fields that weren't captured by advanced detection
+                for interactive_field in interactive_fields:
+                    if not self._is_duplicate_field(interactive_field, all_fields):
+                        interactive_field['is_interactive'] = True
+                        all_fields.append(interactive_field)
+                
+                # Add visual fields that weren't captured by other methods
+                for visual_field in visual_fields:
+                    if not self._is_duplicate_field(visual_field, all_fields):
+                        all_fields.append(visual_field)
             
             # Add document type detection
             doc_type, _ = self._analyze_document_type(pdf_bytes)
             
-            message = f"Found {len(all_fields)} total form fields ({len(advanced_fields)} advanced, {len(visual_fields)} visual, {len(interactive_fields)} interactive)"
+            # Count interactive fields (for display accuracy)
+            interactive_count = len([f for f in all_fields if f.get('is_interactive', False)])
+            
+            message = f"Found {len(all_fields)} total form fields ({len(advanced_fields)} advanced, {len(visual_fields)} visual, {interactive_count} interactive)"
             
             return {
                 "success": True,
@@ -92,8 +112,9 @@ class PDFFormAnalyzerFocused:
                 "document_type": doc_type,
                 "advanced_field_count": len(advanced_fields),
                 "visual_field_count": len(visual_fields),
-                "interactive_field_count": len(interactive_fields),
-                "total_field_count": len(all_fields)
+                "interactive_field_count": interactive_count,
+                "total_field_count": len(all_fields),
+                "is_fillable_pdf": len(interactive_fields) > 50
             }
             
         except Exception as e:
