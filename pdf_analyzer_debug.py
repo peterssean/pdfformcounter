@@ -32,11 +32,16 @@ class PDFFormAnalyzerDebug:
             pymupdf_fields = self._extract_with_pymupdf(pdf_bytes)
             print(f"PyMuPDF found {len(pymupdf_fields)} fields")
             
+            # Method 2.5: Visual structure analysis
+            visual_fields = self._detect_visual_form_fields(pdf_bytes)
+            print(f"Visual analysis found {len(visual_fields)} potential fields")
+            
             # Merge without duplicates
             existing_names = {f.get("name", "") for f in fields}
-            for field in pymupdf_fields:
+            for field in pymupdf_fields + visual_fields:
                 if field.get("name", "") not in existing_names:
                     fields.append(field)
+                    existing_names.add(field.get("name", ""))
             
             # Method 3: Annotation scanning
             annotation_fields = self._extract_annotations(pdf_bytes)
@@ -167,7 +172,7 @@ class PDFFormAnalyzerDebug:
                 page = pdf_doc[page_num]
                 
                 # Method 1: Get widgets
-                widgets = page.widgets()
+                widgets = list(page.widgets())  # Convert generator to list
                 print(f"Page {page_num + 1}: Found {len(widgets)} widgets")
                 
                 for i, widget in enumerate(widgets):
@@ -190,7 +195,7 @@ class PDFFormAnalyzerDebug:
                         continue
                 
                 # Method 2: Get annotations and look for form fields
-                annotations = page.annots()
+                annotations = list(page.annots())  # Convert generator to list
                 print(f"Page {page_num + 1}: Found {len(annotations)} annotations")
                 
                 for i, annot in enumerate(annotations):
@@ -218,22 +223,48 @@ class PDFFormAnalyzerDebug:
                         print(f"Annotation processing error on page {page_num}: {e}")
                         continue
                 
-                # Method 3: Scan for form fields using get_form_field_names
+            # Method 3: Document-level form field extraction
+            try:
+                # Try to get all form fields at document level
+                if hasattr(pdf_doc, 'is_form_pdf') and pdf_doc.is_form_pdf:
+                    print(f"PDF is identified as a form document")
+                    
+                # Try get_formfield_names at document level
+                form_field_names = []
                 try:
-                    if hasattr(pdf_doc, 'get_form_field_names'):
-                        form_names = pdf_doc.get_form_field_names()
-                        print(f"Form field names found: {len(form_names) if form_names else 0}")
-                        if form_names:
-                            for name in form_names:
-                                field_info = {
-                                    "name": name,
-                                    "type": "Form Field",
-                                    "page": page_num + 1,
-                                    "required": False
-                                }
-                                fields.append(field_info)
+                    if hasattr(pdf_doc, 'get_formfield_names'):
+                        form_field_names = pdf_doc.get_formfield_names()
+                    elif hasattr(pdf_doc, 'get_form_field_names'):
+                        form_field_names = pdf_doc.get_form_field_names()
+                    print(f"Document level form field names: {len(form_field_names) if form_field_names else 0}")
                 except Exception as e:
-                    print(f"Form field names extraction error: {e}")
+                    print(f"Document form field extraction error: {e}")
+                
+                # Process each form field name
+                for name in form_field_names or []:
+                    try:
+                        field_info = {
+                            "name": name,
+                            "type": "Document Form Field",
+                            "page": 1,  # Will try to find actual page later
+                            "required": False
+                        }
+                        
+                        # Try to get more info about this field
+                        try:
+                            if hasattr(pdf_doc, 'get_formfield'):
+                                field_details = pdf_doc.get_formfield(name)
+                                if field_details:
+                                    field_info.update(field_details)
+                        except:
+                            pass
+                        
+                        fields.append(field_info)
+                    except Exception as e:
+                        print(f"Error processing form field {name}: {e}")
+                        
+            except Exception as e:
+                print(f"Document level form extraction error: {e}")
             
             pdf_doc.close()
             
@@ -301,5 +332,73 @@ class PDFFormAnalyzerDebug:
                         
         except Exception as e:
             print(f"Annotation extraction error: {e}")
+        
+        return fields
+    
+    def _detect_visual_form_fields(self, pdf_bytes: bytes) -> List[Dict[str, Any]]:
+        """Detect potential form fields by analyzing visual structure."""
+        fields = []
+        try:
+            pdf_doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+            
+            for page_num in range(len(pdf_doc)):
+                page = pdf_doc[page_num]
+                
+                # Get all rectangles (potential form field borders)
+                drawings = page.get_drawings()
+                print(f"Page {page_num + 1}: Found {len(drawings)} drawings/rectangles")
+                
+                # Look for rectangular shapes that could be form fields
+                rect_count = 0
+                for drawing in drawings:
+                    try:
+                        # Check if this looks like a form field rectangle
+                        if 'rect' in drawing or 'items' in drawing:
+                            rect_count += 1
+                            field_info = {
+                                "name": f"visual_rect_page{page_num+1}_{rect_count}",
+                                "type": "Visual Rectangle",
+                                "page": page_num + 1,
+                                "required": False
+                            }
+                            fields.append(field_info)
+                    except Exception as e:
+                        print(f"Drawing analysis error: {e}")
+                        continue
+                
+                # Also try to detect text blocks that might be form labels
+                text_blocks = page.get_text("dict")
+                if text_blocks and 'blocks' in text_blocks:
+                    form_like_texts = []
+                    for block in text_blocks['blocks']:
+                        if 'lines' in block:
+                            for line in block['lines']:
+                                if 'spans' in line:
+                                    for span in line['spans']:
+                                        text = span.get('text', '').strip()
+                                        # Look for form-like text patterns
+                                        if any(keyword in text.lower() for keyword in 
+                                               ['nom', 'name', 'adresse', 'address', 'telephone', 'date', 
+                                                'signature', ':' ]):
+                                            if len(text) < 50:  # Likely a label, not content
+                                                form_like_texts.append(text)
+                    
+                    print(f"Page {page_num + 1}: Found {len(form_like_texts)} form-like text labels")
+                    
+                    # Create fields based on form labels found
+                    for i, text in enumerate(form_like_texts[:10]):  # Limit to 10 per page
+                        field_info = {
+                            "name": f"visual_label_page{page_num+1}_{i}_{text[:20]}",
+                            "type": "Visual Form Label",
+                            "page": page_num + 1,
+                            "required": False,
+                            "label": text
+                        }
+                        fields.append(field_info)
+            
+            pdf_doc.close()
+            
+        except Exception as e:
+            print(f"Visual form field detection error: {e}")
         
         return fields
