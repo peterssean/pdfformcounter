@@ -158,27 +158,37 @@ def display_pdf_analysis(result, file_index, total_files):
     else:
         st.markdown("### Analysis Results")
     
-    # Display document type and field analysis insights
+    # Display document type and comprehensive field analysis
     if "document_type" in result:
         doc_type = result["document_type"]
-        interactive_count = result.get("interactive_field_count", field_count)
+        total_count = result.get("total_field_count", field_count)
         visual_count = result.get("visual_field_count", 0)
+        interactive_count = result.get("interactive_field_count", 0)
         
-        col1, col2 = st.columns([2, 1])
+        # Header with document type
+        st.info(f"📄 Document Type: **{doc_type}**")
+        
+        # Field count breakdown
+        col1, col2, col3 = st.columns(3)
         with col1:
-            st.info(f"📄 Document Type: **{doc_type}**")
+            st.metric("🎯 Total Form Fields", total_count, help="All fillable areas users need to complete")
         with col2:
-            if visual_count > interactive_count:
-                st.warning(f"📊 {visual_count} visual elements detected, {interactive_count} are interactive")
-            else:
-                st.success(f"✅ All {interactive_count} form elements are interactive")
+            st.metric("👁️ Visual Elements", visual_count, help="Form fields visible to users (boxes, lines, checkboxes)")
+        with col3:
+            st.metric("⚡ Interactive Widgets", interactive_count, help="Digitally fillable PDF form widgets")
         
-        # Explanation for forms with visual-only fields
-        if visual_count > interactive_count and interactive_count < 10:
-            st.markdown("""
-            **ℹ️ Why fewer interactive fields?** This PDF contains visual form fields (drawn rectangles/boxes) that aren't 
-            programmatically fillable. Only truly interactive fields that can be filled digitally are counted.
-            """)
+        # Analysis insight
+        if total_count > 0:
+            if visual_count > interactive_count:
+                st.success(f"✅ **Comprehensive Detection**: Found {total_count} form fields for data entry planning")
+                st.markdown(f"""
+                **📊 Field Analysis:** This document has {visual_count} visual form elements that users will need to fill out, 
+                with {interactive_count} being digitally interactive. This count is ideal for project estimation and complexity analysis.
+                """)
+            else:
+                st.success(f"✅ **Fully Interactive Form**: All {total_count} form fields are digitally fillable")
+        else:
+            st.warning("⚠️ No form fields detected - this may be a non-interactive document")
     
     
     if field_count > 0:

@@ -2,6 +2,7 @@ import PyPDF2
 import io
 import fitz
 from typing import Dict, List, Any, Optional
+from visual_field_detector import VisualFieldDetector
 
 class PDFFormAnalyzerFocused:
     """
@@ -15,50 +16,66 @@ class PDFFormAnalyzerFocused:
             '/Ch': 'Choice/Dropdown',
             '/Sig': 'Signature Field'
         }
+        self.visual_detector = VisualFieldDetector()
     
     def analyze_pdf(self, pdf_bytes: bytes) -> Dict[str, Any]:
         """
         Analyze PDF using focused detection methods.
         """
         try:
-            fields = []
+            # Interactive widget detection (existing methods)
+            interactive_fields = []
             
             # Method 1: Enhanced PyMuPDF detection
             pymupdf_fields = self._extract_with_pymupdf_focused(pdf_bytes)
             print(f"PyMuPDF focused method found {len(pymupdf_fields)} fields")
-            fields.extend(pymupdf_fields)
+            interactive_fields.extend(pymupdf_fields)
             
-            # Method 2: Enhanced PyPDF2 with better handling
+            # Method 2: Enhanced PyPDF2 with better handling  
             pypdf2_fields = self._extract_with_pypdf2_enhanced(pdf_bytes)
             print(f"PyPDF2 enhanced method found {len(pypdf2_fields)} fields")
             
             # Merge without duplicates based on coordinates and names
             for field in pypdf2_fields:
-                if not self._is_duplicate_field(field, fields):
-                    fields.append(field)
+                if not self._is_duplicate_field(field, interactive_fields):
+                    interactive_fields.append(field)
             
             # Method 3: Direct annotation processing with better filtering
             annot_fields = self._extract_annotations_focused(pdf_bytes)
             print(f"Focused annotation method found {len(annot_fields)} fields")
             
             for field in annot_fields:
-                if not self._is_duplicate_field(field, fields):
-                    fields.append(field)
+                if not self._is_duplicate_field(field, interactive_fields):
+                    interactive_fields.append(field)
             
-            # Add document type detection and analysis insights
-            doc_type, visual_field_count = self._analyze_document_type(pdf_bytes)
+            # Visual field detection (comprehensive approach)
+            visual_result = self.visual_detector.detect_visual_fields(pdf_bytes)
+            visual_fields = visual_result.get("fields", []) if visual_result.get("success") else []
+            print(f"Visual detector found {len(visual_fields)} visual form elements")
             
-            message = f"Found {len(fields)} interactive form fields using focused detection"
-            if visual_field_count > len(fields):
-                message += f" (detected {visual_field_count} visual form elements that aren't interactive)"
+            # Combine all fields, prioritizing visual detection for comprehensive coverage
+            all_fields = visual_fields.copy()
+            
+            # Add any interactive fields that weren't captured visually
+            for interactive_field in interactive_fields:
+                if not self._is_duplicate_field(interactive_field, all_fields):
+                    # Mark as interactive for distinction
+                    interactive_field['is_interactive'] = True
+                    all_fields.append(interactive_field)
+            
+            # Add document type detection
+            doc_type, _ = self._analyze_document_type(pdf_bytes)
+            
+            message = f"Found {len(all_fields)} total form fields ({len(visual_fields)} visual elements, {len(interactive_fields)} interactive widgets)"
             
             return {
                 "success": True,
-                "fields": fields,
+                "fields": all_fields,
                 "message": message,
                 "document_type": doc_type,
-                "visual_field_count": visual_field_count,
-                "interactive_field_count": len(fields)
+                "visual_field_count": len(visual_fields),
+                "interactive_field_count": len(interactive_fields),
+                "total_field_count": len(all_fields)
             }
             
         except Exception as e:
