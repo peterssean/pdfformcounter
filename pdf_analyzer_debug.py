@@ -71,17 +71,28 @@ class PDFFormAnalyzerDebug:
             
             # Check for AcroForm
             root_obj = pdf_reader.trailer.get("/Root")
-            if not root_obj or "/AcroForm" not in root_obj:
+            if not root_obj:
+                return fields
+                
+            # Handle IndirectObject for root
+            if hasattr(root_obj, 'get_object'):
+                root_obj = root_obj.get_object()
+            
+            if "/AcroForm" not in root_obj:
                 return fields
             
             acro_form = root_obj["/AcroForm"]
+            # Handle IndirectObject for AcroForm
+            if hasattr(acro_form, 'get_object'):
+                acro_form = acro_form.get_object()
+                
             if "/Fields" not in acro_form:
                 return fields
             
             form_fields = acro_form["/Fields"]
             for i, field_ref in enumerate(form_fields):
                 try:
-                    field_obj = field_ref.get_object()
+                    field_obj = field_ref.get_object() if hasattr(field_ref, 'get_object') else field_ref
                     self._process_field_recursive(field_obj, fields, f"pypdf2_field_{i}")
                 except Exception as e:
                     print(f"Error processing field {i}: {e}")
@@ -147,19 +158,22 @@ class PDFFormAnalyzerDebug:
             return None
     
     def _extract_with_pymupdf(self, pdf_bytes: bytes) -> List[Dict[str, Any]]:
-        """Extract fields using PyMuPDF."""
+        """Extract fields using PyMuPDF with comprehensive detection."""
         fields = []
         try:
             pdf_doc = fitz.open(stream=pdf_bytes, filetype="pdf")
             
             for page_num in range(len(pdf_doc)):
                 page = pdf_doc[page_num]
+                
+                # Method 1: Get widgets
                 widgets = page.widgets()
+                print(f"Page {page_num + 1}: Found {len(widgets)} widgets")
                 
                 for i, widget in enumerate(widgets):
                     try:
                         field_info = {
-                            "name": widget.field_name or f"pymupdf_field_page{page_num+1}_{i}",
+                            "name": widget.field_name or f"pymupdf_widget_page{page_num+1}_{i}",
                             "type": self._get_widget_type(widget),
                             "page": page_num + 1,
                             "required": False,
@@ -174,6 +188,52 @@ class PDFFormAnalyzerDebug:
                     except Exception as e:
                         print(f"Widget processing error on page {page_num}: {e}")
                         continue
+                
+                # Method 2: Get annotations and look for form fields
+                annotations = page.annots()
+                print(f"Page {page_num + 1}: Found {len(annotations)} annotations")
+                
+                for i, annot in enumerate(annotations):
+                    try:
+                        # Check if it's a widget annotation
+                        if annot.type[1] == 'Widget':
+                            field_info = {
+                                "name": f"pymupdf_annot_page{page_num+1}_{i}",
+                                "type": "Widget Annotation",
+                                "page": page_num + 1,
+                                "required": False,
+                                "rect": [annot.rect.x0, annot.rect.y0, annot.rect.x1, annot.rect.y1]
+                            }
+                            
+                            # Try to get more info from annotation
+                            info = annot.info
+                            if info.get('name'):
+                                field_info["name"] = info['name']
+                            if info.get('content'):
+                                field_info["default_value"] = info['content']
+                            
+                            fields.append(field_info)
+                            
+                    except Exception as e:
+                        print(f"Annotation processing error on page {page_num}: {e}")
+                        continue
+                
+                # Method 3: Scan for form fields using get_form_field_names
+                try:
+                    if hasattr(pdf_doc, 'get_form_field_names'):
+                        form_names = pdf_doc.get_form_field_names()
+                        print(f"Form field names found: {len(form_names) if form_names else 0}")
+                        if form_names:
+                            for name in form_names:
+                                field_info = {
+                                    "name": name,
+                                    "type": "Form Field",
+                                    "page": page_num + 1,
+                                    "required": False
+                                }
+                                fields.append(field_info)
+                except Exception as e:
+                    print(f"Form field names extraction error: {e}")
             
             pdf_doc.close()
             
