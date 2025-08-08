@@ -3,6 +3,7 @@ import io
 import fitz
 from typing import Dict, List, Any, Optional
 from visual_field_detector import VisualFieldDetector
+from advanced_field_detector import AdvancedFieldDetector
 
 class PDFFormAnalyzerFocused:
     """
@@ -17,6 +18,7 @@ class PDFFormAnalyzerFocused:
             '/Sig': 'Signature Field'
         }
         self.visual_detector = VisualFieldDetector()
+        self.advanced_detector = AdvancedFieldDetector()
     
     def analyze_pdf(self, pdf_bytes: bytes) -> Dict[str, Any]:
         """
@@ -51,45 +53,44 @@ class PDFFormAnalyzerFocused:
                     if not self._is_duplicate_field(field, interactive_fields):
                         interactive_fields.append(field)
             
-            # Visual field detection (comprehensive approach)
+            # Advanced field detection (layout analysis approach)
+            advanced_result = self.advanced_detector.detect_form_fields(pdf_bytes)
+            advanced_fields = advanced_result.get("fields", []) if advanced_result.get("success") else []
+            print(f"Advanced detector found {len(advanced_fields)} form fields")
+            
+            # Visual field detection (pattern-based approach)
             visual_result = self.visual_detector.detect_visual_fields(pdf_bytes)
             visual_fields = visual_result.get("fields", []) if visual_result.get("success") else []
             print(f"Visual detector found {len(visual_fields)} visual form elements")
             
-            # Combine all fields, prioritizing visual detection for comprehensive coverage
-            all_fields = visual_fields.copy()
+            # Combine all detection methods intelligently
+            all_fields = []
             
-            # For forms with many interactive widgets, use those as the primary count
-            # since they are more accurate than visual detection for modern PDF forms
-            if len(interactive_fields) > 50:
-                # This is a modern form with proper interactive fields
-                all_fields = interactive_fields.copy()
-                for field in all_fields:
-                    field['is_interactive'] = True
-                
-                # Add any visual fields that might have been missed
-                for visual_field in visual_fields:
-                    if not self._is_duplicate_field(visual_field, all_fields):
-                        all_fields.append(visual_field)
-            else:
-                # For forms with few interactive fields, prioritize visual detection
-                # Add any interactive fields that weren't captured visually
-                for interactive_field in interactive_fields:
-                    if not self._is_duplicate_field(interactive_field, all_fields):
-                        # Mark as interactive for distinction
-                        interactive_field['is_interactive'] = True
-                        all_fields.append(interactive_field)
+            # Start with advanced detection as the base
+            all_fields.extend(advanced_fields)
+            
+            # Add interactive fields that weren't captured by advanced detection
+            for interactive_field in interactive_fields:
+                if not self._is_duplicate_field(interactive_field, all_fields):
+                    interactive_field['is_interactive'] = True
+                    all_fields.append(interactive_field)
+            
+            # Add visual fields that weren't captured by other methods
+            for visual_field in visual_fields:
+                if not self._is_duplicate_field(visual_field, all_fields):
+                    all_fields.append(visual_field)
             
             # Add document type detection
             doc_type, _ = self._analyze_document_type(pdf_bytes)
             
-            message = f"Found {len(all_fields)} total form fields ({len(visual_fields)} visual elements, {len(interactive_fields)} interactive widgets)"
+            message = f"Found {len(all_fields)} total form fields ({len(advanced_fields)} advanced, {len(visual_fields)} visual, {len(interactive_fields)} interactive)"
             
             return {
                 "success": True,
                 "fields": all_fields,
                 "message": message,
                 "document_type": doc_type,
+                "advanced_field_count": len(advanced_fields),
                 "visual_field_count": len(visual_fields),
                 "interactive_field_count": len(interactive_fields),
                 "total_field_count": len(all_fields)

@@ -4,6 +4,7 @@ from pdf_analyzer_focused import PDFFormAnalyzerFocused as PDFFormAnalyzer
 import pandas as pd
 import fitz  # PyMuPDF
 from PIL import Image, ImageDraw
+from field_visualizer import FieldVisualizer
 
 # Set page configuration
 st.set_page_config(
@@ -162,46 +163,75 @@ def display_pdf_analysis(result, file_index, total_files):
     if "document_type" in result:
         doc_type = result["document_type"]
         total_count = result.get("total_field_count", field_count)
-        visual_count = result.get("visual_field_count", 0)
+        advanced_count = result.get("advanced_field_count", 0)
+        visual_count = result.get("visual_field_count", 0) 
         interactive_count = result.get("interactive_field_count", 0)
         
         # Header with document type
         st.info(f"📄 Document Type: **{doc_type}**")
         
-        # Field count breakdown
-        col1, col2, col3 = st.columns(3)
+        # Enhanced field count breakdown
+        col1, col2, col3, col4 = st.columns(4)
         with col1:
-            st.metric("🎯 Total Form Fields", total_count, help="All fillable areas users need to complete")
+            st.metric("🎯 Total Fields", total_count, help="All detected form fields combined")
         with col2:
-            st.metric("👁️ Visual Elements", visual_count, help="Form fields visible to users (boxes, lines, checkboxes)")
+            st.metric("🔍 Advanced Detection", advanced_count, help="Fields found via layout analysis")
         with col3:
-            st.metric("⚡ Interactive Widgets", interactive_count, help="Digitally fillable PDF form widgets")
+            st.metric("👁️ Visual Elements", visual_count, help="Pattern-based visual fields")
+        with col4:
+            st.metric("⚡ Interactive", interactive_count, help="PDF widget fields")
         
-        # Analysis insight
+        # Detection quality analysis
         if total_count > 0:
-            if visual_count > interactive_count:
-                st.success(f"✅ **Comprehensive Detection**: Found {total_count} form fields for data entry planning")
-                st.markdown(f"""
-                **📊 Field Analysis:** This document has {visual_count} visual form elements that users will need to fill out, 
-                with {interactive_count} being digitally interactive. This count is ideal for project estimation and complexity analysis.
-                """)
+            if advanced_count >= total_count * 0.7:
+                st.success(f"✅ **High Accuracy Detection**: {advanced_count} fields detected via advanced layout analysis")
+            elif interactive_count > 50:
+                st.success(f"✅ **Modern Interactive Form**: {interactive_count} digital form widgets detected")
             else:
-                st.success(f"✅ **Fully Interactive Form**: All {total_count} form fields are digitally fillable")
+                st.info(f"📊 **Mixed Detection**: Combined {total_count} fields from multiple detection methods")
+            
+            # Show detection method breakdown
+            with st.expander("🔍 Detection Method Details", expanded=False):
+                st.markdown(f"""
+                **Advanced Layout Analysis**: {advanced_count} fields  
+                - Uses text positioning, drawing analysis, and form patterns  
+                - Highest accuracy for static PDF forms  
+                
+                **Interactive Widgets**: {interactive_count} fields  
+                - Native PDF form elements  
+                - Guaranteed fillable fields  
+                
+                **Visual Pattern Detection**: {visual_count} fields  
+                - Checkbox symbols, underlines, rectangles  
+                - Captures visually apparent fields  
+                """)
         else:
             st.warning("⚠️ No form fields detected - this may be a non-interactive document")
     
     
     if field_count > 0:
-        # PDF Preview Section (collapsible)
-        with st.expander("📄 PDF Form Preview", expanded=False):
-            # Add toggle for field highlighting (unique key for each file)
-            checkbox_key = f"highlight_{file_index}_{result['filename']}" if total_files > 1 else "highlight_fields"
-            highlight_fields = st.checkbox(
-                "🎯 Highlight fillable fields", 
-                value=True, 
-                help="Show colored rectangles around detected form fields",
-                key=checkbox_key
-            )
+        # Enhanced PDF Preview Section (collapsible)
+        with st.expander("📄 Enhanced PDF Form Preview", expanded=False):
+            # Add visualization options
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                checkbox_key = f"highlight_{file_index}_{result['filename']}" if total_files > 1 else "highlight_fields"
+                highlight_fields = st.checkbox(
+                    "🎯 Enhanced Field Highlighting", 
+                    value=True, 
+                    help="Show advanced field detection overlays",
+                    key=checkbox_key
+                )
+            
+            with col2:
+                show_legend_key = f"legend_{file_index}_{result['filename']}" if total_files > 1 else "show_legend"
+                show_legend = st.checkbox(
+                    "📋 Show Field Legend",
+                    value=True,
+                    help="Display field type color legend",
+                    key=show_legend_key
+                )
             
             if highlight_fields:
                 st.markdown("**Legend:** 🔴 Text Fields | 🔵 Buttons/Checkboxes | 🟢 Dropdowns | 🟠 Other Fields")
