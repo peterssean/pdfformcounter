@@ -31,22 +31,25 @@ class PDFFormAnalyzerFocused:
             print(f"PyMuPDF focused method found {len(pymupdf_fields)} fields")
             interactive_fields.extend(pymupdf_fields)
             
-            # Method 2: Enhanced PyPDF2 with better handling  
-            pypdf2_fields = self._extract_with_pypdf2_enhanced(pdf_bytes)
-            print(f"PyPDF2 enhanced method found {len(pypdf2_fields)} fields")
-            
-            # Merge without duplicates based on coordinates and names
-            for field in pypdf2_fields:
-                if not self._is_duplicate_field(field, interactive_fields):
-                    interactive_fields.append(field)
-            
-            # Method 3: Direct annotation processing with better filtering
-            annot_fields = self._extract_annotations_focused(pdf_bytes)
-            print(f"Focused annotation method found {len(annot_fields)} fields")
-            
-            for field in annot_fields:
-                if not self._is_duplicate_field(field, interactive_fields):
-                    interactive_fields.append(field)
+            # Skip additional methods if we already have comprehensive detection
+            # PyPDF2 and annotations tend to duplicate PyMuPDF results
+            if len(interactive_fields) < 100:
+                # Method 2: Enhanced PyPDF2 with better handling  
+                pypdf2_fields = self._extract_with_pypdf2_enhanced(pdf_bytes)
+                print(f"PyPDF2 enhanced method found {len(pypdf2_fields)} fields")
+                
+                # Merge without duplicates based on coordinates and names
+                for field in pypdf2_fields:
+                    if not self._is_duplicate_field(field, interactive_fields):
+                        interactive_fields.append(field)
+                
+                # Method 3: Direct annotation processing with better filtering
+                annot_fields = self._extract_annotations_focused(pdf_bytes)
+                print(f"Focused annotation method found {len(annot_fields)} fields")
+                
+                for field in annot_fields:
+                    if not self._is_duplicate_field(field, interactive_fields):
+                        interactive_fields.append(field)
             
             # Visual field detection (comprehensive approach)
             visual_result = self.visual_detector.detect_visual_fields(pdf_bytes)
@@ -56,12 +59,26 @@ class PDFFormAnalyzerFocused:
             # Combine all fields, prioritizing visual detection for comprehensive coverage
             all_fields = visual_fields.copy()
             
-            # Add any interactive fields that weren't captured visually
-            for interactive_field in interactive_fields:
-                if not self._is_duplicate_field(interactive_field, all_fields):
-                    # Mark as interactive for distinction
-                    interactive_field['is_interactive'] = True
-                    all_fields.append(interactive_field)
+            # For forms with many interactive widgets, use those as the primary count
+            # since they are more accurate than visual detection for modern PDF forms
+            if len(interactive_fields) > 50:
+                # This is a modern form with proper interactive fields
+                all_fields = interactive_fields.copy()
+                for field in all_fields:
+                    field['is_interactive'] = True
+                
+                # Add any visual fields that might have been missed
+                for visual_field in visual_fields:
+                    if not self._is_duplicate_field(visual_field, all_fields):
+                        all_fields.append(visual_field)
+            else:
+                # For forms with few interactive fields, prioritize visual detection
+                # Add any interactive fields that weren't captured visually
+                for interactive_field in interactive_fields:
+                    if not self._is_duplicate_field(interactive_field, all_fields):
+                        # Mark as interactive for distinction
+                        interactive_field['is_interactive'] = True
+                        all_fields.append(interactive_field)
             
             # Add document type detection
             doc_type, _ = self._analyze_document_type(pdf_bytes)

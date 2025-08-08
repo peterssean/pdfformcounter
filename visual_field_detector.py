@@ -115,19 +115,34 @@ class VisualFieldDetector:
                         })
                 
                 # Analyze lines for underline fields
+                horizontal_lines = []
                 for line in lines:
                     x1, y1, x2, y2 = line
                     length = abs(x2 - x1)
                     
                     # Horizontal lines that could be form field underlines
-                    if abs(y2 - y1) < 2 and length > 30:
-                        fields.append({
-                            'name': f"underline_field_{len(fields)+1}",
-                            'type': 'Text Field',
-                            'page': page_num,
-                            'rect': [x1, y1-5, x2, y2+5],
-                            'detection_method': 'underline_detection'
-                        })
+                    if abs(y2 - y1) < 2 and length > 20:
+                        horizontal_lines.append((x1, y1, x2, y2, length))
+                
+                # Group nearby horizontal lines into form fields
+                horizontal_lines.sort(key=lambda x: (x[1], x[0]))  # Sort by y, then x
+                
+                for i, line in enumerate(horizontal_lines):
+                    x1, y1, x2, y2, length = line
+                    
+                    # Skip if this line is too close to the previous one (likely part of same field)
+                    if i > 0:
+                        prev_line = horizontal_lines[i-1]
+                        if abs(y1 - prev_line[1]) < 5:
+                            continue
+                    
+                    fields.append({
+                        'name': f"underline_field_{len(fields)+1}",
+                        'type': 'Text Field',
+                        'page': page_num,
+                        'rect': [x1, y1-10, x2, y2+5],
+                        'detection_method': 'underline_detection'
+                    })
         
         except Exception as e:
             print(f"Drawing analysis error: {e}")
@@ -142,6 +157,9 @@ class VisualFieldDetector:
             # Get text with formatting information
             text_dict = page.get_text("dict")
             
+            # Track checkbox symbols (■) as form fields
+            checkbox_symbol_count = 0
+            
             # Look for form field indicators in text
             for block in text_dict["blocks"]:
                 if "lines" not in block:
@@ -152,8 +170,23 @@ class VisualFieldDetector:
                         text = span["text"]
                         bbox = span["bbox"]
                         
-                        # Look for form field patterns
-                        if self._is_form_field_text_pattern(text):
+                        # Detect checkbox symbols (■)
+                        if '■' in text:
+                            # Count each checkbox symbol as a field
+                            num_checkboxes = text.count('■')
+                            for i in range(num_checkboxes):
+                                checkbox_symbol_count += 1
+                                fields.append({
+                                    'name': f"checkbox_{checkbox_symbol_count}",
+                                    'type': 'Checkbox',
+                                    'page': page_num,
+                                    'rect': list(bbox),
+                                    'detection_method': 'checkbox_symbol',
+                                    'text_content': '■'
+                                })
+                        
+                        # Look for other form field patterns
+                        elif self._is_form_field_text_pattern(text):
                             field_type = self._classify_text_field_type(text)
                             
                             fields.append({
