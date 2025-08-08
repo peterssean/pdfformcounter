@@ -73,15 +73,25 @@ class PDFFormAnalyzerFocused:
                 
                 for i, widget in enumerate(widgets):
                     try:
-                        # Only process actual form widgets
+                        # Get field name, handling complex nested names
                         field_name = widget.field_name or f"field_{page_num+1}_{i}"
+                        # Simplify the name for better readability
+                        if field_name and '.' in field_name:
+                            # Extract the meaningful part from complex names
+                            parts = field_name.split('.')
+                            simple_name = parts[-1]  # Get the last part like 'f1_01[0]'
+                            if '[' in simple_name:
+                                simple_name = simple_name.split('[')[0]  # Remove [0] suffix
+                            field_name = simple_name
+                        
+                        # Get field type using the widget type code
                         field_type = self._get_pymupdf_widget_type(widget)
                         
                         field_info = {
                             "name": field_name,
                             "type": field_type,
                             "page": page_num + 1,
-                            "required": getattr(widget, 'is_required', False),
+                            "required": False,
                             "rect": [widget.rect.x0, widget.rect.y0, widget.rect.x1, widget.rect.y1]
                         }
                         
@@ -92,16 +102,15 @@ class PDFFormAnalyzerFocused:
                         except:
                             pass
                         
-                        # Additional widget properties
+                        # Store the widget type code for debugging
                         try:
                             if hasattr(widget, 'field_type'):
                                 field_info["widget_type_code"] = widget.field_type
-                            if hasattr(widget, 'field_flags'):
-                                field_info["flags"] = widget.field_flags
                         except:
                             pass
                             
                         fields.append(field_info)
+                        print(f"  Widget {i}: {field_name} ({field_type}) at {field_info['rect']}")
                         
                     except Exception as e:
                         print(f"Error processing widget {i} on page {page_num}: {e}")
@@ -147,15 +156,34 @@ class PDFFormAnalyzerFocused:
         """Get widget type from PyMuPDF widget."""
         try:
             if hasattr(widget, 'field_type'):
+                # Map the actual type codes we're seeing
                 type_map = {
-                    fitz.PDF_WIDGET_TYPE_TEXT: 'Text Field',
-                    fitz.PDF_WIDGET_TYPE_CHECKBOX: 'Checkbox',
-                    fitz.PDF_WIDGET_TYPE_RADIOBUTTON: 'Radio Button',
-                    fitz.PDF_WIDGET_TYPE_LISTBOX: 'List Box',
-                    fitz.PDF_WIDGET_TYPE_COMBOBOX: 'Combo Box',
-                    fitz.PDF_WIDGET_TYPE_SIGNATURE: 'Signature Field',
-                    fitz.PDF_WIDGET_TYPE_BUTTON: 'Button'
+                    0: 'Button',
+                    1: 'Checkbox', 
+                    2: 'Checkbox',  # Type 2 is also checkbox
+                    3: 'Radio Button',
+                    4: 'List Box',
+                    5: 'Combo Box',
+                    6: 'Signature Field',
+                    7: 'Text Field'  # Type 7 is text field
                 }
+                
+                # Try to get the constant names too
+                try:
+                    const_map = {
+                        fitz.PDF_WIDGET_TYPE_TEXT: 'Text Field',
+                        fitz.PDF_WIDGET_TYPE_CHECKBOX: 'Checkbox',
+                        fitz.PDF_WIDGET_TYPE_RADIOBUTTON: 'Radio Button',
+                        fitz.PDF_WIDGET_TYPE_LISTBOX: 'List Box',
+                        fitz.PDF_WIDGET_TYPE_COMBOBOX: 'Combo Box',
+                        fitz.PDF_WIDGET_TYPE_SIGNATURE: 'Signature Field',
+                        fitz.PDF_WIDGET_TYPE_BUTTON: 'Button'
+                    }
+                    if widget.field_type in const_map:
+                        return const_map[widget.field_type]
+                except:
+                    pass
+                
                 return type_map.get(widget.field_type, f'Widget Type {widget.field_type}')
         except:
             pass
