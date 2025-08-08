@@ -119,26 +119,43 @@ def process_single_pdf(pdf_file, analyzer, file_index=0, total_files=1):
         }
 
 def display_batch_summary(results):
-    """Display summary table and statistics for batch processing."""
+    """Display summary table and statistics for batch processing - only count highlighted fields."""
     st.markdown("### Batch Analysis Summary")
     
-    # Create summary data
+    # Create summary data - count only highlighted fields
     summary_data = []
-    total_fields = 0
+    total_highlighted_fields = 0
     
     for result in results:
         if result["success"]:
-            field_count = len(result["fields"])
-            total_fields += field_count
+            fields = result["fields"]
             
-            # Get field types breakdown
-            field_types = [field.get("type", "Unknown") for field in result["fields"]]
+            # Count only highlighted fields based on PDF type
+            is_fillable = result.get("is_fillable_pdf", False)
+            highlighted_field_count = 0
+            
+            if is_fillable:
+                # For fillable PDFs, count only interactive fields (what gets highlighted)
+                highlighted_field_count = len([f for f in fields if f.get('is_interactive', False)])
+            else:
+                # For static PDFs, count all detected fields (all get highlighted)
+                highlighted_field_count = len(fields)
+            
+            total_highlighted_fields += highlighted_field_count
+            
+            # Get field types for highlighted fields only
+            if is_fillable:
+                highlighted_fields = [f for f in fields if f.get('is_interactive', False)]
+            else:
+                highlighted_fields = fields
+                
+            field_types = [field.get("type", "Unknown") for field in highlighted_fields]
             unique_types = len(set(field_types))
             
             summary_data.append({
                 "Filename": result["filename"],
                 "Status": "✅ Success",
-                "Fields Found": field_count,
+                "Highlighted Fields": highlighted_field_count,
                 "Field Types": unique_types,
                 "File Size": f"{result['file_size']:,} bytes"
             })
@@ -146,7 +163,7 @@ def display_batch_summary(results):
             summary_data.append({
                 "Filename": result["filename"],
                 "Status": "❌ Failed",
-                "Fields Found": 0,
+                "Highlighted Fields": 0,
                 "Field Types": 0,
                 "File Size": f"{result['file_size']:,} bytes"
             })
@@ -156,7 +173,7 @@ def display_batch_summary(results):
         df = pd.DataFrame(summary_data)
         st.dataframe(df, use_container_width=True)
         
-        # Overall statistics
+        # Overall statistics - focus on highlighted fields only
         successful_files = sum(1 for result in results if result["success"])
         col1, col2, col3, col4 = st.columns(4)
         
@@ -165,10 +182,10 @@ def display_batch_summary(results):
         with col2:
             st.metric("Successful", successful_files)
         with col3:
-            st.metric("Total Fields Found", total_fields)
+            st.metric("Total Highlighted Fields", total_highlighted_fields)
         with col4:
-            avg_fields = total_fields / successful_files if successful_files > 0 else 0
-            st.metric("Avg Fields per PDF", f"{avg_fields:.1f}")
+            avg_fields = total_highlighted_fields / successful_files if successful_files > 0 else 0
+            st.metric("Avg Highlighted per PDF", f"{avg_fields:.1f}")
 
 def display_pdf_analysis(result, file_index, total_files):
     """Display detailed analysis for a single PDF."""
@@ -197,61 +214,38 @@ def display_pdf_analysis(result, file_index, total_files):
         is_fillable = result.get("is_fillable_pdf", False)
         
         if is_fillable:
-            # For fillable PDFs, show only interactive field count to match highlighted fields
-            st.metric("📝 Fillable Fields", interactive_count, help="Interactive PDF form fields (these are highlighted below)")
+            # For fillable PDFs, show only interactive field count (what gets highlighted)
+            st.metric("📝 Fillable Fields", interactive_count, help="Fields that can be filled out (highlighted below)")
         else:
-            # For static PDFs, show advanced detection prominently
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                st.metric("🎯 Form Fields", total_count, help="All detected fillable areas")
-            with col2:
-                st.metric("🔍 Advanced Detection", advanced_count, help="Fields found via layout analysis")  
-            with col3:
-                st.metric("👁️ Visual Patterns", visual_count, help="Pattern-based visual fields")
+            # For static PDFs, show only the total count that will be highlighted
+            st.metric("📝 Form Fields", total_count, help="Detected fillable areas (highlighted below)")
         
-        # Detection quality analysis
+        # Only show field type breakdown for highlighted fields
         if total_count > 0:
-            if advanced_count >= total_count * 0.7:
-                st.success(f"✅ **High Accuracy Detection**: {advanced_count} fields detected via advanced layout analysis")
-            elif interactive_count > 50:
-                st.success(f"✅ **Modern Interactive Form**: {interactive_count} digital form widgets detected")
-            else:
-                st.info(f"📊 **Mixed Detection**: Combined {total_count} fields from multiple detection methods")
+            # Get only the fields that will be highlighted
+            fields = result.get("fields", [])
+            highlighted_fields = []
             
-            # Show detection method breakdown and field types
-            with st.expander("🔍 Detection Method Details", expanded=False):
-                # Count field types
-                fields = result.get("fields", [])
+            if is_fillable:
+                highlighted_fields = [f for f in fields if f.get('is_interactive', False)]
+            else:
+                highlighted_fields = fields
+            
+            if len(highlighted_fields) > 0:
+                # Count field types for highlighted fields only
                 field_types = {}
-                for field in fields:
+                for field in highlighted_fields:
                     ftype = field.get('type', 'Unknown')
                     field_types[ftype] = field_types.get(ftype, 0) + 1
                 
-                col1, col2 = st.columns(2)
-                
-                with col1:
-                    st.markdown("**Detection Methods:**")
-                    st.markdown(f"""
-                    • **Advanced Layout Analysis**: {advanced_count} fields  
-                      - Text positioning and form patterns  
-                    • **Interactive Widgets**: {interactive_count} fields  
-                      - Native PDF form elements  
-                    • **Visual Pattern Detection**: {visual_count} fields  
-                      - Checkbox symbols and underlines  
-                    """)
-                
-                with col2:
-                    st.markdown("**Field Types Found:**")
+                with st.expander("📊 Field Types (Highlighted Only)", expanded=False):
                     for ftype, count in sorted(field_types.items()):
-                        if ftype == 'Unknown Field':
-                            st.markdown(f"• **{ftype}**: {count} 🔍 (highlighted in pink)")
-                        else:
-                            st.markdown(f"• **{ftype}**: {count}")
-                
-                # Show warning if unknown fields exist
-                unknown_count = field_types.get('Unknown Field', 0)
-                if unknown_count > 0:
-                    st.warning(f"⚠️ {unknown_count} fields could not be classified and are highlighted in pink for review")
+                        st.markdown(f"• **{ftype}**: {count}")
+                    
+                    # Show warning if unknown fields exist
+                    unknown_count = field_types.get('Unknown Field', 0)
+                    if unknown_count > 0:
+                        st.warning(f"⚠️ {unknown_count} fields highlighted in pink need review")
         else:
             st.warning("⚠️ No form fields detected - this may be a non-interactive document")
     
@@ -332,11 +326,11 @@ def display_pdf_analysis(result, file_index, total_files):
                     
                     # Display PDF pages
                     if len(page_images) == 1:
-                        page_fields = page_field_counts.get(1, 0)
+                        page_fields = page_field_counts.get(1, 0) 
                         if highlight_fields and len(highlighted_counts) > 0:
-                            caption = f"Page 1 - {page_fields} fields ({highlighted_counts[0]} highlighted)"
+                            caption = f"Page 1 - {highlighted_counts[0]} highlighted fields"
                         else:
-                            caption = f"Page 1 - {page_fields} fillable fields detected"
+                            caption = f"Page 1 - {page_fields} fields detected"
                         st.image(page_images[0], caption=caption, use_container_width=True)
                     else:
                         cols = st.columns(min(len(page_images), 3))
@@ -345,7 +339,7 @@ def display_pdf_analysis(result, file_index, total_files):
                                 page_num = i + 1
                                 page_fields = page_field_counts.get(page_num, 0)
                                 if highlight_fields and i < len(highlighted_counts):
-                                    caption = f"Page {page_num} - {page_fields} fields ({highlighted_counts[i]} highlighted)"
+                                    caption = f"Page {page_num} - {highlighted_counts[i]} highlighted fields"
                                 else:
                                     caption = f"Page {page_num} - {page_fields} fields"
                                 st.image(page_img, caption=caption, use_container_width=True)
@@ -362,18 +356,27 @@ def display_pdf_analysis(result, file_index, total_files):
                 st.warning(f"PDF preview unavailable: {str(e)}")
                 st.info("The field counting and analysis features are still working normally.")
         
-        # Display summary metrics
-        col1, col2, col3 = st.columns(3)
+        # Only show metrics for highlighted fields
+        highlighted_field_count = 0
+        highlighted_field_types = set()
+        
+        # Count only highlighted fields for metrics
+        for field in fields:
+            if result.get("is_fillable_pdf", False):
+                if field.get('is_interactive', False):
+                    highlighted_field_count += 1
+                    highlighted_field_types.add(field.get("type", "Unknown"))
+            else:
+                highlighted_field_count += 1
+                highlighted_field_types.add(field.get("type", "Unknown"))
+        
+        col1, col2 = st.columns(2)
         
         with col1:
-            st.metric("Total Fields", field_count)
+            st.metric("Highlighted Fields", highlighted_field_count)
         
         with col2:
-            field_types = [field.get("type", "Unknown") for field in fields]
-            unique_types = len(set(field_types))
-            st.metric("Field Types", unique_types)
-        
-        with col3:
+            st.metric("Field Types", len(highlighted_field_types))
             required_fields = sum(1 for field in fields if field.get("required", False))
             st.metric("Required Fields", required_fields)
         
