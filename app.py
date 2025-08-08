@@ -16,57 +16,80 @@ st.set_page_config(
 
 def highlight_fields_on_page(pdf_document, page_num, fields, zoom_factor=1.5):
     """
-    Highlight form fields on a PDF page by drawing colored rectangles around them.
+    Highlight form fields on a PDF page using comprehensive field detection.
     """
-    page = pdf_document[page_num]
+    # Filter fields for this page - only interactive fields for fillable PDFs
+    # All fields for static PDFs
+    page_fields = []
+    is_fillable = False
     
-    # Render page to image with good quality
+    # Check if this is a fillable PDF (has interactive fields)
+    interactive_fields = [f for f in fields if f.get('is_interactive', False)]
+    if len(interactive_fields) > 50:
+        is_fillable = True
+        # For fillable PDFs, only highlight interactive fields
+        page_fields = [f for f in fields if f.get("page") == page_num + 1 and f.get('is_interactive', False)]
+    else:
+        # For static PDFs, highlight all detected fields
+        page_fields = [f for f in fields if f.get("page") == page_num + 1]
+    
+    # Render page to image
+    page = pdf_document[page_num]
     mat = fitz.Matrix(zoom_factor, zoom_factor)
     pix = page.get_pixmap(matrix=mat)
-    
-    # Convert to PIL Image
     img_data = pix.tobytes("png")
     img = Image.open(io.BytesIO(img_data))
     
-    # Create drawing context
-    draw = ImageDraw.Draw(img)
+    # Create overlay for highlighting
+    overlay = Image.new('RGBA', img.size, (255, 255, 255, 0))
+    draw = ImageDraw.Draw(overlay)
     
-    # Get page fields for this specific page
-    page_fields = [f for f in fields if f.get("page") == page_num + 1]
+    # Color mapping for field types
+    field_colors = {
+        'Text Field': (255, 107, 107),      # Red
+        'Checkbox': (78, 205, 196),         # Teal  
+        'Radio Button': (69, 183, 209),     # Blue
+        'Dropdown': (150, 206, 180),        # Green
+        'Signature Field': (255, 234, 167), # Yellow
+        'Button': (221, 160, 221),          # Plum
+        'List Box': (152, 216, 200),        # Mint
+        'Unknown Field': (255, 105, 180),   # Hot Pink
+    }
     
-    # Try to get field rectangles from the page
+    # Draw highlights for each field
     field_highlights = 0
-    try:
-        # Get all widgets (form fields) on this page
-        widgets = page.widgets()
+    for field in page_fields:
+        rect = field.get('rect', [0, 0, 0, 0])
         
-        for widget in widgets:
-            # Get widget rectangle
-            rect = widget.rect
+        # Skip invalid rectangles
+        if len(rect) != 4 or (rect[0] == 0 and rect[1] == 792 and rect[2] == 0 and rect[3] == 792):
+            continue
             
-            # Scale rectangle coordinates by zoom factor
-            x1, y1, x2, y2 = rect.x0 * zoom_factor, rect.y0 * zoom_factor, rect.x1 * zoom_factor, rect.y1 * zoom_factor
-            
-            # Choose color based on field type
-            field_type = getattr(widget, 'field_type', 0)
-            if field_type == 1:  # Text field
-                color = "red"
-            elif field_type == 2:  # Button/Checkbox
-                color = "blue"
-            elif field_type == 3:  # Choice/Dropdown
-                color = "green"
-            else:
-                color = "orange"
-            
-            # Draw rectangle around the field
-            draw.rectangle([x1, y1, x2, y2], outline=color, width=3)
-            field_highlights += 1
+        # Scale rectangle coordinates
+        x1, y1, x2, y2 = [coord * zoom_factor for coord in rect]
+        
+        # Skip tiny fields
+        if abs(x2 - x1) < 2 or abs(y2 - y1) < 2:
+            continue
+        
+        # Get field type and color
+        field_type = field.get('type', 'Unknown Field')
+        color_rgb = field_colors.get(field_type, field_colors['Unknown Field'])
+        
+        # Draw semi-transparent rectangle
+        fill_color = (*color_rgb, 40)   # Semi-transparent fill
+        outline_color = (*color_rgb, 200)  # More opaque outline
+        
+        draw.rectangle([x1, y1, x2, y2], 
+                      fill=fill_color, 
+                      outline=outline_color, 
+                      width=2)
+        field_highlights += 1
     
-    except Exception:
-        # If we can't extract widget positions, just return the original image
-        pass
+    # Combine base image with overlay
+    result = Image.alpha_composite(img.convert('RGBA'), overlay)
     
-    return img, field_highlights
+    return result.convert('RGB'), field_highlights
 
 def process_single_pdf(pdf_file, analyzer, file_index=0, total_files=1):
     """Process a single PDF file and return analysis results."""
@@ -174,12 +197,8 @@ def display_pdf_analysis(result, file_index, total_files):
         is_fillable = result.get("is_fillable_pdf", False)
         
         if is_fillable:
-            # For fillable PDFs, show interactive field count prominently  
-            col1, col2 = st.columns(2)
-            with col1:
-                st.metric("📝 Fillable Fields", interactive_count, help="Interactive PDF form fields that users can fill")
-            with col2:
-                st.metric("📄 Total Detected", total_count, help="All form fields including visual patterns")
+            # For fillable PDFs, show only interactive field count to match highlighted fields
+            st.metric("📝 Fillable Fields", interactive_count, help="Interactive PDF form fields (these are highlighted below)")
         else:
             # For static PDFs, show advanced detection prominently
             col1, col2, col3 = st.columns(3)
@@ -296,12 +315,20 @@ def display_pdf_analysis(result, file_index, total_files):
                     page_images.append(img)
                 
                 if page_images:
-                    # Group fields by page for display
+                    # Group fields by page for display - count only what will be highlighted
                     page_field_counts = {}
+                    is_fillable = result.get("is_fillable_pdf", False)
+                    
                     for field in fields:
                         page = field.get("page", "Unknown")
                         if page != "Unknown":
-                            page_field_counts[page] = page_field_counts.get(page, 0) + 1
+                            # For fillable PDFs, only count interactive fields
+                            # For static PDFs, count all fields
+                            if is_fillable:
+                                if field.get('is_interactive', False):
+                                    page_field_counts[page] = page_field_counts.get(page, 0) + 1
+                            else:
+                                page_field_counts[page] = page_field_counts.get(page, 0) + 1
                     
                     # Display PDF pages
                     if len(page_images) == 1:
